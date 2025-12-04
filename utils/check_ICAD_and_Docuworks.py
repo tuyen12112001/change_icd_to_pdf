@@ -26,7 +26,7 @@ def ensure_docuworks_running():
     Kiểm tra DocuWorks có chạy không, nếu chưa thì mở từ shortcut.
     Sau đó thử active cửa sổ.
     """
-    windows = [w for w in gw.getWindowsWithTitle('DocuWorks') if w.title.startswith('DocuWorks')]
+    windows = [w for w in gw.getWindowsWithTitle('DocuWorks Desk') if w.title.startswith('DocuWorks')]
     if not windows:
         shortcut = find_shortcut("DocuWorks")
         if shortcut:
@@ -37,7 +37,7 @@ def ensure_docuworks_running():
             print("❌ Không tìm thấy shortcut DocuWorks trong Start Menu.")
             return False
 
-    windows = [w for w in gw.getWindowsWithTitle('DocuWorks') if w.title.startswith('DocuWorks')]
+    windows = [w for w in gw.getWindowsWithTitle('DocuWorks Desk') if w.title.startswith('DocuWorks')]
     if windows:
         win = windows[0]
         win.restore()  # Khôi phục nếu bị thu nhỏ
@@ -58,12 +58,12 @@ def ensure_icad_running(icad_path):
     """
     Kiểm tra ICAD có đang chạy không, nếu chưa thì khởi động và active cửa sổ.
     """
-    icad_windows = gw.getWindowsWithTitle('Caelum')
+    icad_windows = gw.getWindowsWithTitle('Micro Caelum')
     if not icad_windows:
         print("🔄 ICAD chưa mở, đang khởi động...")
         subprocess.Popen([icad_path])
         time.sleep(5)  # Chờ ứng dụng mở
-        icad_windows = gw.getWindowsWithTitle('Caelum')  # Kiểm tra lại sau khi mở
+        icad_windows = gw.getWindowsWithTitle('Micro Caelum')  # Kiểm tra lại sau khi mở
 
     if icad_windows:
         try:
