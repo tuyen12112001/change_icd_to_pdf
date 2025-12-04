@@ -11,11 +11,9 @@ from config.settings import (
     APP_TITLE, HEADER_TEXT, PROGRESS_LENGTH,
 )
 from utils.UI_helpers import (
-    blink_widget, update_error_box,
-    animate_loading, stop_loading, update_status,
+    blink_widget
 )
 from process.process_manager import ProcessManager
-
 
 class ShutsuzuuApp(TkinterDnD.Tk):
     def __init__(self):
@@ -28,29 +26,23 @@ class ShutsuzuuApp(TkinterDnD.Tk):
         try:
             self.iconbitmap(ICON_PATH)
         except Exception:
-            pass  # Không chặn chạy nếu icon lỗi
+            pass  # アイコンが壊れていても実行をブロックしない
 
         # ウィンドウを最前面に
         self.attributes('-topmost', True)
         self.lift()
         self.focus_force()
 
-        # --- Khởi tạo trạng thái trước ---
+        # --- 以前の状態を初期化する ---
         self.info = None
         self.excel_full_path = ""
         self.is_running = False
 
-        # --- KHỞI TẠO PROCESS MANAGER TRƯỚC KHI TẠO UI ---
-        from process.process_manager import ProcessManager
+        # --- UI を作成する前にプロセス マネージャーを初期化する ---
         self.process_manager = ProcessManager(self)
 
-        # Tạo UI
+        # UIを作成する
         self._build_ui()
-
-        # 保存情報 & trạng thái
-        self.info = None
-        self.excel_full_path = ""
-        self.is_running = False
 
     def _build_ui(self):
         # ヘッダー
@@ -76,7 +68,7 @@ class ShutsuzuuApp(TkinterDnD.Tk):
         self.progress.pack(pady=5)
         self.progress["value"] = 0
 
-        # Error Box
+        # エラーメッセージボックス
         error_frame = tk.Frame(self, bg=PANEL_BG, bd=2, relief="groove")
         error_frame.pack(pady=10, padx=20, fill="both", expand=True)
         tk.Label(error_frame, text="エラーメッセージ", font=("Arial", 12, "bold"), bg=PANEL_BG).pack(anchor="center", pady=5)
@@ -84,10 +76,10 @@ class ShutsuzuuApp(TkinterDnD.Tk):
         self.error_box.pack(padx=10, pady=5, fill="both", expand=True)
         self.error_box.config(state=tk.DISABLED)
 
-        # Tag màu cho từng loại trạng thái
+        # 各ステータスタイプのカラータグ
         self.error_box.tag_config("error", foreground="red")
         self.error_box.tag_config("success", foreground="green")
-        self.error_box.tag_config("info", foreground="#0066cc")       # xanh dương
+        self.error_box.tag_config("info", foreground="#0066cc")       
         self.error_box.tag_config("warning", foreground="#cc6600")
 
         # ボタン
@@ -115,7 +107,7 @@ class ShutsuzuuApp(TkinterDnD.Tk):
                                   width=12, font=("Arial", 12, "bold"))
         self.quit_btn.pack(side=tk.RIGHT, padx=15)
 
-    # --- Sự kiện UI ---
+    # --- UI イベント ---
     def on_drop_excel(self, event):
         file_path = event.data.strip("{}")
         if file_path.lower().endswith((".xlsx", ".xls")):
