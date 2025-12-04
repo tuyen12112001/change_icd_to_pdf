@@ -6,8 +6,8 @@ from tkinter import messagebox
 
 from utils.UI_helpers import (
     animate_loading, stop_loading, update_status,
-    log_error, log_info, log_success, log_warning, clear_error_box,
-    update_file_comparison_message,
+    log_error, clear_error_box,
+    update_file_comparison_message, add_delete_xdw_buttons,
 )
 from config.settings import STATUS_ERROR_COLOR, STATUS_WARN_COLOR
 
@@ -16,6 +16,7 @@ from .create import step1_create_and_copy
 from .printing import step2_print_icd
 from .xdw_collection import step3_collect_xdw
 from .clear import step4_cleanup
+from .cleanup_xdw import cleanup_xdw_on_user_request, show_no_delete_xdw_message
 from utils.excel_collect import add_ls_lk_excel_set_to_output
 from utils.excel_remove import excel_remove
 from utils.emergency_stop import emergency_manager, cleanup_on_stop
@@ -175,6 +176,15 @@ class ProcessManager:
                     )
                     messagebox.showwarning("注意", warning_msg)
                     update_file_comparison_message(self.app, warning_msg, status="warning")
+                    
+                    # Thêm 2 button Yes/No để user chọn xóa file XDW
+                    def on_yes():
+                        cleanup_xdw_on_user_request(self.app, self.app.info["output_folder"])
+                    
+                    def on_no():
+                        show_no_delete_xdw_message(self.app)
+                    
+                    add_delete_xdw_buttons(self.app, on_yes, on_no)
                 else:
                     success_msg = (
                         f"処理が完了しました。\n移動した.xdwファイル数: {moved_count} 件\n"
@@ -187,3 +197,4 @@ class ProcessManager:
                 log_error(self.app, f"クリーンアップに失敗しました: {str(e)}")
         else:
             log_error(self.app, ".xdwファイルの取得に失敗しました。")
+
