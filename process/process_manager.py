@@ -16,7 +16,7 @@ from .create import step1_create_and_copy
 from .printing import step2_print_icd
 from .xdw_collection import step3_collect_xdw
 from .clear import step4_cleanup
-from .cleanup_xdw import cleanup_xdw_on_user_request, show_no_delete_xdw_message
+from utils.cleanup_xdw import cleanup_xdw_on_user_request, show_no_delete_xdw_message
 from utils.excel_collect import add_ls_lk_excel_set_to_output
 from utils.excel_remove import excel_remove
 from utils.emergency_stop import emergency_manager, cleanup_on_stop

@@ -11,47 +11,9 @@ import numpy as np
 from utils.check_ICAD_and_Docuworks import ensure_docuworks_running, ensure_icad_running
 from utils.emergency_stop import emergency_manager
 from config.settings import IMAGE1_PATH, IMAGE2_PATH
+from utils.docuworks_folder_creator import create_docuworks_folder_unique
 
 keyboard = Controller()
-
-
-# ===========================================================
-# ✅ DocuWorksで新しいフォルダを作成
-# ===========================================================
-def create_docuworks_folder(excel_name_clean):
-    """
-    DocuWorksで新しいフォルダを作成し、名前を返す。
-    """
-    
-    if not ensure_docuworks_running():
-        raise Exception("DocuWorksが開いていません。")
-
-
-    # フォルダ名はExcel名（LS-は既に除去済み）
-    folder_name = excel_name_clean
-
-    # Alt+F → N → Fで新規フォルダ作成
-    pyautogui.keyDown('alt')
-    pyautogui.press('f')
-    pyautogui.keyUp('alt')
-    time.sleep(0.3)
-    pyautogui.press('n')
-    time.sleep(0.3)
-    pyautogui.press('f')
-    time.sleep(0.5)
-
-    # 名前入力
-    pyautogui.typewrite(folder_name, interval=0.05)
-    pyautogui.press('enter')
-    time.sleep(1)
-
-    if emergency_manager.is_stop_requested():
-        print("⚠ フォルダ入力後に非常停止が押されました。処理を中断します。")
-        return None
-
-
-    print(f"✅ DocuWorksで新しいフォルダを作成しました: {folder_name}")
-    return folder_name
 
 # ===========================================================
 # 🔍 画像認識で座標を取得（複数モニター対応）
@@ -70,6 +32,7 @@ def locate_center_mss(template_path, threshold=0.80):
         template = cv2.imread(template_path, cv2.IMREAD_COLOR)
         if template is None:
             print(f"⚠ 画像を読み込めません: {template_path}")
+            return None
 
         result = cv2.matchTemplate(screenshot, template, cv2.TM_CCOEFF_NORMED)
         _, max_val, _, max_loc = cv2.minMaxLoc(result)
@@ -121,12 +84,9 @@ def step2_print_icd(output_dir, excel_name_clean):
     """
     try:
         # 1. DocuWorksでフォルダ作成
-        folder_name = create_docuworks_folder(excel_name_clean)
+        folder_name = create_docuworks_folder_unique(excel_name_clean, ensure_docuworks_running)
         if not folder_name:
             raise Exception("DocuWorksフォルダの作成に失敗しました。")
-
-        # # ユーザーに印刷先フォルダを通知
-        # messagebox.showinfo("情報", f"DocuWorksでフォルダ '{folder_name}' に印刷してください。")
 
         # 2. ICADを起動または確認
         icad_path = r"C:\MC2\bin\icad.exe"
@@ -170,10 +130,6 @@ def step2_print_icd(output_dir, excel_name_clean):
             print("⚠ プリンタ選択後に非常停止が押されました。処理を中断します。")
             return None
         
-        # Alt + Down để mở danh sách
-        pyautogui.keyDown('alt')
-        pyautogui.press('o')
-        time.sleep(0.5)
         keyboard.press(Key.alt)
         keyboard.press(Key.down)
         keyboard.release(Key.alt)
@@ -208,8 +164,7 @@ def step2_print_icd(output_dir, excel_name_clean):
             print("⚠ プリンタ選択後に非常停止が押されました。処理を中断します。")
             return None
         return folder_name  # フォルダ名を返す
-    
-        
+         
     except Exception as e:
         print(f"❌ 印刷中にエラーが発生しました: {e}")
         return None
