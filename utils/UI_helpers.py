@@ -14,7 +14,7 @@ def blink_widget(widget, times=3, color="#ffcccc", interval=200):
     toggle(times * 2)
 
 def clear_error_box(app):
-    """Xóa toàn bộ nội dung trong error_box"""
+    """error_box 内のすべてのコンテンツを削除します"""
     def _clear():
         app.error_box.config(state=tk.NORMAL)
         app.error_box.delete("1.0", "end")
@@ -24,26 +24,26 @@ def clear_error_box(app):
 
 def update_error_box(app, message, status="error", exclusive_pairs=(("warning", "info"),)):
     """
-    Cập nhật error_box - chỉ thêm thông báo mới, không xóa cũ
+    error_box を更新 - 新しいメッセージのみを追加し、古いメッセージは削除しないでください
     """
     def _update():
         app.error_box.config(state=tk.NORMAL)
 
-        # Icon theo trạng thái
+        # アイコンの種類
         icons = {"error": "❌", "success": "✅", "info": "ℹ️", "warning": "⚠️"}
         icon = icons.get(status, "•")
         text = f"{icon} {message}\n"
 
-        # Chèn và gán tag
+        # タグを挿入して割り当てる
         app.error_box.insert("end", text, status)
 
-        # Hiệu ứng nhấp nháy nhẹ theo trạng thái
+        # ステータスに応じたライトの点滅効果
         if status == "error":
             blink_widget(app.error_box, color="#ffcccc")
         elif status == "success":
             blink_widget(app.error_box, color="#ccffcc")
 
-        # Khóa lại & cuộn xuống
+        # ロックして下にスクロール
         app.error_box.config(state=tk.DISABLED)
         app.error_box.see("end")
 
@@ -51,49 +51,48 @@ def update_error_box(app, message, status="error", exclusive_pairs=(("warning", 
 
 def update_file_comparison_message(app, message, status="error"):
     """
-    Quản lý thông báo so sánh file XDW và ICD
-    Chỉ giữ 1 thông báo loại này - xóa cái cũ nếu có thêm cái mới
-    Nếu success, cũng xóa các button Yes/No
+    XDWファイルとICDファイルの比較通知を管理します
+    これらの通知のうち1つだけを残し、新しい通知が追加された場合は古い通知を削除します
+    成功した場合は、「はい/いいえ」ボタンも削除します
     
     Args:
         app: ShutsuzuuApp instance
-        message: Nội dung thông báo
+        message: 通知内容
         status: "warning" (ファイル数が一致しません), hoặc "info" (処理が完了)
     """
     def _update():
         app.error_box.config(state=tk.NORMAL)
 
-        # Xóa tất cả thông báo so sánh file cũ + button Yes/No
+        # 古いファイル比較通知をすべてクリア + はい/いいえボタン
         for tag in ["error", "success", "warning", "info"]:
             ranges = app.error_box.tag_ranges(tag)
             for i in range(0, len(ranges), 2):
                 content = app.error_box.get(ranges[i], ranges[i+1])
-                # Chỉ xóa nếu là thông báo so sánh file (chứa keyword) hoặc hỏi xóa file
                 if ("xdwファイル数" in content or "処理が完了しました" in content or 
                     "コピーされたXDWファイルを削除しますか" in content):
                     app.error_box.delete(ranges[i], ranges[i+1])
         
-        # Nếu success, xóa luôn các button Yes/No (child windows trong error_box)
+        # 情報ステータスのメッセージが表示されたら、はい/いいえボタン（error_box の子ウィンドウ）を削除します。
         if status == "info":
-            # Tìm và xóa tất cả windows (button) trong error_box
+            # error_box 内のすべてのウィンドウ（ボタン）を検索して削除します
             for widget_name in app.error_box.window_names():
                 app.error_box.delete(widget_name)
 
-        # Icon theo trạng thái
+        # アイコンの種類
         icons = {"error": "❌", "success": "✅", "warning": "⚠️", "info": "ℹ️"}
         icon = icons.get(status, "•")
         text = f"{icon} {message}\n"
 
-        # Chèn thông báo mới
+        # 新しいメッセージを挿入
         app.error_box.insert("end", text, status)
 
-        # Hiệu ứng nhấp nháy
+        # 点滅効果
         if status == "warning":
             blink_widget(app.error_box, color="#ffcccc")
         elif status == "info":
             blink_widget(app.error_box, color="#ccffff")
 
-        # Khóa lại & cuộn xuống
+        # ロックして下にスクロール
         app.error_box.config(state=tk.DISABLED)
         app.error_box.see("end")
 
@@ -113,12 +112,12 @@ def log_warning(app, msg):
 
 def add_delete_xdw_buttons(app, on_yes_callback, on_no_callback):
     """
-    Thêm 2 button "Yes" "No" vào error box để user chọn xóa file XDW hay không
+    ユーザーが XDW ファイルを削除するかどうかを選択できるように、エラー ボックスに「はい」「いいえ」の 2 つのボタンを追加します。
     
     Args:
         app: ShutsuzuuApp instance
-        on_yes_callback: Function gọi khi user ấn Yes
-        on_no_callback: Function gọi khi user ấn No
+        on_yes_callback: ユーザーが「削除する」を押した際に呼び出される関数
+        on_no_callback: ユーザーが「削除しない」を押した際に呼び出される関数
     """
     def _add_buttons():
         app.error_box.config(state=tk.NORMAL)

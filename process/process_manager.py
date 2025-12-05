@@ -11,7 +11,6 @@ from utils.UI_helpers import (
 )
 from config.settings import STATUS_ERROR_COLOR, STATUS_WARN_COLOR
 
-# Giữ nguyên import từ các module bạn đã có
 from .create import step1_create_and_copy
 from .printing import step2_print_icd
 from .xdw_collection import step3_collect_xdw
@@ -26,7 +25,7 @@ class ProcessManager:
     def __init__(self, app):
         self.app = app
 
-    # Sự kiện: 非常停止
+    # イベント: 非常に停止
     def emergency_stop(self):
         emergency_manager.trigger_stop()
         self.app.status_label.config(text="処理を強制停止しました。", fg=STATUS_ERROR_COLOR)
@@ -39,11 +38,11 @@ class ProcessManager:
         
         messagebox.showwarning("警告", "処理を強制停止しました。")
 
-    # Sự kiện: 開始
+    # イベント: 開始
     def start_process(self):
         emergency_manager.reset()
         self.app.print_done_btn.config(state="disabled")
-        clear_error_box(self.app)  # Xóa tất cả error message cũ
+        clear_error_box(self.app)  # 古いエラーメッセージをすべて削除する
 
         excel_path = os.path.normpath(self.app.excel_full_path.strip()) if getattr(self.app, "excel_full_path", "") else ""
         if not excel_path or not os.path.isfile(excel_path):

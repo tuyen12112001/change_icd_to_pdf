@@ -3,7 +3,6 @@
 # emergency_stop.py
 import threading
 import os
-import shutil
 import subprocess
 
 
@@ -12,16 +11,16 @@ class EmergencyStopManager:
         self._stop_event = threading.Event()
 
     def trigger_stop(self):
-        """Kích hoạt dừng khẩn cấp."""
+        """非常停止を作動させます。"""
         self._stop_event.set()
         print("⚠ 非常停止 được kích hoạt!")
 
     def reset(self):
-        """Reset trạng thái dừng (nếu cần chạy lại)."""
+        """一時停止状態をリセットします（再起動が必要な場合）。"""
         self._stop_event.clear()
 
     def is_stop_requested(self) -> bool:
-        """Kiểm tra xem có yêu cầu dừng không."""
+        """停止要求があるかどうかを確認します。"""
         return self._stop_event.is_set()
 
 
@@ -42,7 +41,6 @@ def cleanup_on_stop(app, info_dict):
 
 def _try_delete_folder(app, folder_path):
     """フォルダ削除を試行（force delete 使用）"""
-    from utils.UI_helpers import log_info, log_success, log_warning, log_error
     
     try:
         if not os.path.exists(folder_path):
@@ -94,5 +92,5 @@ def _force_delete_with_cmd(app, folder_path):
         print(f"[エラー] {error_msg}")
 
 
-# Tạo một instance toàn cục để dùng chung
+# 共有用のグローバルインスタンスを作成する
 emergency_manager = EmergencyStopManager()
