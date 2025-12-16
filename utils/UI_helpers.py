@@ -122,10 +122,10 @@ def add_delete_xdw_buttons(app, on_yes_callback, on_no_callback):
     def _add_buttons():
         app.error_box.config(state=tk.NORMAL)
         
-        # Thêm dòng hỏi trước button
+        # ボタンの前にプロンプ​​トを追加する
         app.error_box.insert("end", "\n📋 コピーされたXDWファイルを削除しますか?\n", "info")
         
-        # Tạo frame chứa 2 button
+        # 2つのボタンを含むフレームを作成する
         button_frame = tk.Frame(app.error_box, bg="white")
         
         yes_btn = tk.Button(
@@ -154,7 +154,7 @@ def add_delete_xdw_buttons(app, on_yes_callback, on_no_callback):
         )
         no_btn.pack(side=tk.LEFT, padx=5)
         
-        # Chèn dòng trống rồi embed button frame
+        # 空白行を挿入してボタンフレームを埋め込む
         app.error_box.insert("end", "")
         app.error_box.window_create("end", window=button_frame)
         app.error_box.insert("end", "\n")

@@ -4,7 +4,7 @@ import time
 import pyautogui
 import pyperclip
 import pygetwindow as gw
-
+from utils.emergency_stop import emergency_manager
 # An toàn & ổn định
 pyautogui.FAILSAFE = True
 pyautogui.PAUSE = 0.2
@@ -91,6 +91,11 @@ def create_docuworks_folder_unique(base_name: str, ensure_docuworks_running, max
     # 3) Thử tạo và xử lý trùng bằng cách nối thêm '1' trong cùng dialog
     attempt_name = base_name
     for _ in range(max_attempts):
+        
+        if emergency_manager.is_stop_requested():
+            print("⚠ 非常停止が押されたため、DocuWorksフォルダ作成を中断します。")
+            return None
+
         _paste_and_confirm(attempt_name)
 
         # Dùng heuristic title + tỷ lệ diện tích màn hình để phát hiện popup

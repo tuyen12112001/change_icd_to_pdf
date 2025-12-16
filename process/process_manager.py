@@ -122,7 +122,27 @@ class ProcessManager:
 
             # Hiển thị thông báo tổng hợp
             msg_cleanup = f"Excel整理完了: 保持={kept}, 削除={removed}, スキップ={skipped}"
-            combine_msg = msg_icd + "\n" + msg_cleanup
+
+            # 保留と追加に関するお知らせを追加
+            msg_hold_add = ""
+            
+            # Nếu có cả 追加 và 保留 → chỉ hiển thị 追加
+            if self.app.info.get("added_due_to_addition") and self.app.info.get("skipped_due_to_hold"):
+                msg_hold_add += f"\nℹ️追加が指定されたため、コピーした部品番号: {', '.join(self.app.info['added_due_to_addition'][:10])}"
+                if len(self.app.info['added_due_to_addition']) > 10:
+                    msg_hold_add += " ... (残り省略)"
+            else:
+                if self.app.info.get("skipped_due_to_hold"):
+                    msg_hold_add += f"\nℹ️保留のためコピーしなかった部品番号: {', '.join(self.app.info['skipped_due_to_hold'][:10])}"
+                    if len(self.app.info['skipped_due_to_hold']) > 10:
+                        msg_hold_add += " ... (残り省略)"
+
+                if self.app.info.get("added_due_to_addition"):
+                    msg_hold_add += f"\nℹ️追加が指定されたため、コピーした部品番号: {', '.join(self.app.info['added_due_to_addition'][:10])}"
+                    if len(self.app.info['added_due_to_addition']) > 10:
+                        msg_hold_add += " ... (残り省略)"
+
+            combine_msg = msg_icd + "\n" + msg_cleanup + msg_hold_add
             combine_msg += f"\nこれから {self.app.info['copied_count']} 部品図を印刷します"
 
             # Show vào error_box theo trạng thái
