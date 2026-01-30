@@ -23,11 +23,13 @@ def _open_new_folder_dialog():
 def _paste_and_confirm(name_text):
     """Paste tên vào ô nhập và Enter (Ctrl+A để làm sạch trước khi dán)."""
     pyperclip.copy(name_text)
+    time.sleep(0.15)
     pyautogui.hotkey('ctrl', 'a')
-    time.sleep(0.05)
+    time.sleep(0.15)
     pyautogui.hotkey('ctrl', 'v')
+    time.sleep(0.15)
     pyautogui.press('enter')
-    time.sleep(0.6)
+    time.sleep(0.8)
 
 def _dismiss_popup_with_enter():
     """Đóng popup (OK) bằng Enter."""

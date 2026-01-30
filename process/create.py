@@ -47,8 +47,7 @@ def step1_create_and_copy(excel_path):
         df.columns = ["K", "AB", "AD"]
 
         
-        # AB列の値を数値に変換する
-        df["AB"] = pd.to_numeric(df["AB"], errors="coerce").fillna(0)
+        # AB列の値はそのまま保持（型変換しない）
 
         # AD列の値を数値に変換する
         df["AD"] = df["AD"].astype(str).str.strip()
@@ -70,11 +69,11 @@ def step1_create_and_copy(excel_path):
             # Chỉ lấy các dòng có "追加"
             filtered_df = df[(df["AD"] == "追加") & (df["K"].notna()) & (df["K"] != 0)]
         else:
-            # Logic cũ: bỏ 保留, lấy AB != 0
+            # Bỏ 保留, lấy AB khác None, rỗng, 0
             filtered_df = df[
-                (df["K"].notna()) & (df["K"] != 0) & (
-                    ((df["AD"] != "保留") & (df["AB"] != 0))
-                )
+                (df["K"].notna()) & (df["K"] != 0) &
+                (df["AD"] != "保留") &
+                (df["AB"].notna()) & (df["AB"] != "") & (df["AB"].astype(str) != "0")
             ]
         # # フィルタリング: Kが有効で、ABが0でない行のみ
         # filtered_df = df[(df["K"].notna()) & (df["K"] != 0) & (df["AB"] != 0)]
