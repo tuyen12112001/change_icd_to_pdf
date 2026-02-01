@@ -14,7 +14,9 @@ from config.settings import STATUS_ERROR_COLOR, STATUS_WARN_COLOR
 from .create import step1_create_and_copy
 from .printing import step2_print_icd
 from .xdw_collection import step3_collect_xdw
+from .pdf_collection import step3_collect_pdf, step4_exchange_pdf, compare_icd_pdf
 from .clear import step4_cleanup
+from .clear_pdf import step4_cleanup_pdf
 from utils.cleanup_xdw import cleanup_xdw_on_user_request, show_no_delete_xdw_message
 from utils.excel_collect import add_ls_lk_excel_set_to_output
 from utils.excel_remove import excel_remove
@@ -45,10 +47,21 @@ class ProcessManager:
         self.app.print_done_btn.config(state="disabled")
         clear_error_box(self.app)  # 古いエラーメッセージをすべて削除する
 
-        excel_path = os.path.normpath(self.app.excel_full_path.strip()) if getattr(self.app, "excel_full_path", "") else ""
-        if not excel_path or not os.path.isfile(excel_path):
-            messagebox.showerror("エラー", "有効なExcelファイルを選択してください。")
-            return
+        # モード判定（ExcelまたはFolder）
+        input_mode = self.app.mode_var.get() if hasattr(self.app, "mode_var") else "excel"
+        
+        if input_mode == "excel":
+            excel_path = os.path.normpath(self.app.excel_full_path.strip()) if getattr(self.app, "excel_full_path", "") else ""
+            if not excel_path or not os.path.isfile(excel_path):
+                messagebox.showerror("エラー", "有効なExcelファイルを選択してください。")
+                return
+            folder_path = None
+        else:  # folder mode
+            folder_path = os.path.normpath(self.app.folder_full_path.strip()) if getattr(self.app, "folder_full_path", "") else ""
+            if not folder_path or not os.path.isdir(folder_path):
+                messagebox.showerror("エラー", "有効なICDフォルダを選択してください。")
+                return
+            excel_path = None
 
         # Vô hiệu hóa nút 開始 để tránh nhấn nhiều lần
         self.app.start_btn.config(state="disabled")
@@ -58,7 +71,7 @@ class ProcessManager:
         animate_loading(self.app, "ステップ1: ファイルコピー中")
         self.app.progress["value"] = 0
 
-        threading.Thread(target=self._run_steps, args=(excel_path,), daemon=True).start()
+        threading.Thread(target=self._run_steps, args=(excel_path, folder_path), daemon=True).start()
 
     
     def _open_folder_safe(self, path):
@@ -73,11 +86,11 @@ class ProcessManager:
         except Exception:
             pass
 
-    def _run_steps(self, excel_path):
+    def _run_steps(self, excel_path, folder_path=None):
         try:
             # Step 1: Copy ICD files
             update_status(self.app, "ステップ1: ファイルコピー中...", 25)
-            self.app.info = step1_create_and_copy(excel_path)
+            self.app.info = step1_create_and_copy(excel_path=excel_path, icd_folder_path=folder_path)
 
             # Kiểm tra lỗi ngay sau khi Step 1
             if not self.app.info or "error" in self.app.info:
@@ -108,39 +121,43 @@ class ProcessManager:
 
     def _continue_steps(self, excel_path, msg_icd, status):
         try:
-            # Excel xử lý
-            related = add_ls_lk_excel_set_to_output(
-                excel_path=excel_path,
-                output_dir=self.app.info["output_folder"],
-                include_selected=True,
-                recursive=False
-            )
-
-            folder_id = self.app.info["excel_name_clean"]
-            base_dir = self.app.info["output_folder"]
-            kept, removed, skipped = excel_remove(folder_id, base_dir)
-
-            # Hiển thị thông báo tổng hợp
-            msg_cleanup = f"Excel整理完了: 保持={kept}, 削除={removed}, スキップ={skipped}"
-
-            # 保留と追加に関するお知らせを追加
+            # Chỉ xử lý Excel khi là mode Excel
+            msg_cleanup = ""
             msg_hold_add = ""
             
-            # Nếu có cả 追加 và 保留 → chỉ hiển thị 追加
-            if self.app.info.get("added_due_to_addition") and self.app.info.get("skipped_due_to_hold"):
-                msg_hold_add += f"\nℹ️追加が指定されたため、コピーした部品番号: {', '.join(self.app.info['added_due_to_addition'][:10])}"
-                if len(self.app.info['added_due_to_addition']) > 10:
-                    msg_hold_add += " ... (残り省略)"
-            else:
-                if self.app.info.get("skipped_due_to_hold"):
-                    msg_hold_add += f"\nℹ️保留のためコピーしなかった部品番号: {', '.join(self.app.info['skipped_due_to_hold'][:10])}"
-                    if len(self.app.info['skipped_due_to_hold']) > 10:
-                        msg_hold_add += " ... (残り省略)"
+            if excel_path:  # Excel mode
+                # Excel xử lý
+                related = add_ls_lk_excel_set_to_output(
+                    excel_path=excel_path,
+                    output_dir=self.app.info["output_folder"],
+                    include_selected=True,
+                    recursive=False
+                )
 
-                if self.app.info.get("added_due_to_addition"):
+                folder_id = self.app.info["excel_name_clean"]
+                base_dir = self.app.info["output_folder"]
+                kept, removed, skipped = excel_remove(folder_id, base_dir)
+
+                # Hiển thị thông báo tổng hợp
+                msg_cleanup = f"Excel整理完了: 保持={kept}, 削除={removed}, スキップ={skipped}"
+
+                # 保留と追加に関するお知らせを追加
+                if self.app.info.get("added_due_to_addition") and self.app.info.get("skipped_due_to_hold"):
                     msg_hold_add += f"\nℹ️追加が指定されたため、コピーした部品番号: {', '.join(self.app.info['added_due_to_addition'][:10])}"
                     if len(self.app.info['added_due_to_addition']) > 10:
                         msg_hold_add += " ... (残り省略)"
+                else:
+                    if self.app.info.get("skipped_due_to_hold"):
+                        msg_hold_add += f"\nℹ️保留のためコピーしなかった部品番号: {', '.join(self.app.info['skipped_due_to_hold'][:10])}"
+                        if len(self.app.info['skipped_due_to_hold']) > 10:
+                            msg_hold_add += " ... (残り省略)"
+
+                    if self.app.info.get("added_due_to_addition"):
+                        msg_hold_add += f"\nℹ️追加が指定されたため、コピーした部品番号: {', '.join(self.app.info['added_due_to_addition'][:10])}"
+                        if len(self.app.info['added_due_to_addition']) > 10:
+                            msg_hold_add += " ... (残り省略)"
+            else:  # Folder mode
+                msg_cleanup = "フォルダモード: すべてのICDファイルをコピーしました。"
 
             combine_msg = msg_icd + "\n" + msg_cleanup + msg_hold_add
             combine_msg += f"\nこれから {self.app.info['copied_count']} 部品図を印刷します"
@@ -183,6 +200,16 @@ class ProcessManager:
             self.app.status_label.config(text="処理は非常停止で中断されました。", fg=STATUS_ERROR_COLOR)
             return
 
+        # PDF mode か Excel mode かで処理を分ける
+        if self.app.input_mode == "folder":
+            # PDFモード
+            self._after_print_pdf_mode()
+        else:
+            # Excelモード
+            self._after_print_excel_mode()
+
+    def _after_print_excel_mode(self):
+        """Excelモード: XDWファイルを収集"""
         # Bước 3: Thu thập .xdw
         update_status(self.app, "ステップ3: .xdwファイルを取得中...", 85)
 
@@ -242,3 +269,74 @@ class ProcessManager:
 
         else:
             log_error(self.app, ".xdwファイルの取得に失敗しました。")
+
+    def _after_print_pdf_mode(self):
+        """PDFモード: Ctrl+A, Alt+T, K, 0, 3 を実行して PDF化"""
+        update_status(self.app, "ステップ3: PDFコンバージョン中...", 85)
+        
+        success = step3_collect_pdf(self.app.info["output_folder"])
+        
+        if success:
+            update_status(self.app, "PDFコンバージョン完了。交換完了ボタンを押してください。", 90, color=STATUS_WARN_COLOR)
+            self.app.exchange_done_btn.config(state="normal")
+            # messagebox.showinfo("情報", "PDFコンバージョンコマンドを実行しました。\n交換完了ボタンを押してください。")
+        else:
+            log_error(self.app, "PDFコンバージョンに失敗しました。")
+
+    # Sự kiện: 交換完了（PDFモードのみ）
+    def after_exchange(self):
+        """PDFモード: PDF検索・コピー・クリーンアップ"""
+        if emergency_manager.is_stop_requested():
+            print("⚠ 非常停止が押されたため、交換完了処理を中断します。")
+            self.app.status_label.config(text="処理は非常停止で中断されました。", fg=STATUS_ERROR_COLOR)
+            return
+
+        update_status(self.app, "ステップ4: PDF検索・移動中...", 95)
+        
+        success = step4_exchange_pdf(self.app.info["output_folder"])
+        
+        if success:
+            # PDF ファイル以外を削除（クリーンアップ）
+            update_status(self.app, "ステップ5: クリーンアップ中...", 98)
+            step4_cleanup_pdf(self.app.info["output_folder"])
+            
+            # ICD と PDF を比較
+            update_status(self.app, "ステップ6: ファイル比較中...", 99)
+            missing, extra = compare_icd_pdf(
+                self.app.info["output_folder"],
+                self.app.info.get("icd_list", [])
+            )
+            
+            # 結果を確認
+            if missing or extra:
+                warning_msg = (
+                    f"処理が完了しましたが、ファイル数が一致しません。\n"
+                    f"ICDファイル数: {len(self.app.info.get('icd_list', []))} 件\n"
+                    f"PDFファイル数: {len([f for f in os.listdir(self.app.info['output_folder']) if f.lower().endswith('.pdf')])} 件\n"
+                )
+                if missing:
+                    warning_msg += f"\n不足ファイル({len(missing)}):\n" + "\n".join(missing[:10])
+                    if len(missing) > 10:
+                        warning_msg += "\n... (残り省略)"
+                if extra:
+                    warning_msg += f"\n余分ファイル({len(extra)}):\n" + "\n".join(extra[:10])
+                    if len(extra) > 10:
+                        warning_msg += "\n... (残り省略)"
+
+                messagebox.showwarning("注意", warning_msg)
+                update_file_comparison_message(self.app, warning_msg, status="warning")
+            else:
+                success_msg = (
+                    f"処理が完了しました。\n"
+                    f"ICDファイル数: {len(self.app.info.get('icd_list', []))} 件\n"
+                    f"PDFファイル数: {len([f for f in os.listdir(self.app.info['output_folder']) if f.lower().endswith('.pdf')])} 件\n"
+                    f"ファイル数が一致しました！"
+                )
+                messagebox.showinfo("情報", success_msg)
+                update_file_comparison_message(self.app, success_msg, status="success")
+            
+            update_status(self.app, "完了！すべての処理が終了しました。", 100, color="green")
+            self.app.exchange_done_btn.config(state="disabled")
+            self._open_folder_safe(self.app.info["output_folder"])
+        else:
+            log_error(self.app, "PDF検索に失敗しました。")
