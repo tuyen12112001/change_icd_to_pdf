@@ -158,9 +158,8 @@ def _step1_folder_mode(icd_folder_path):
         
         os.makedirs(target_folder)
 
-        # drawing フォルダ内のすべての.icdファイルを取得（ASで始まるものは除外、サブフォルダは除外）
+        # drawing フォルダ内のすべての.icdファイルを取得（サブフォルダは除外）
         copied_files = []
-        skipped_as_files = []  # AS で始まるファイルを記録
         
         icd_files = [f for f in os.listdir(drawing_folder) 
                      if os.path.isfile(os.path.join(drawing_folder, f)) and f.lower().endswith('.icd')]
@@ -169,12 +168,6 @@ def _step1_folder_mode(icd_folder_path):
             return {"error": f"drawing フォルダに.icdファイルが見つかりません: {drawing_folder}"}
 
         for icd_file in icd_files:
-            # AS で始まるファイルをスキップ
-            if icd_file.upper().startswith('AS'):
-                skipped_as_files.append(icd_file)
-                print(f"⏭️ スキップ (AS): {icd_file}")
-                continue
-
             src_path = os.path.join(drawing_folder, icd_file)
             dst_path = os.path.join(target_folder, icd_file)
             try:
@@ -185,7 +178,7 @@ def _step1_folder_mode(icd_folder_path):
                 print(f"❌ コピー失敗: {icd_file} - {str(e)}")
 
         if not copied_files:
-            return {"error": f"コピーするICDファイルが見つかりません（ASで始まるファイルを除外後）"}
+            return {"error": f"コピーするICDファイルが見つかりません"}
 
         # config.txt保存
         with open(os.path.join(target_folder, "config.txt"), "w", encoding="utf-8") as f:
@@ -193,10 +186,6 @@ def _step1_folder_mode(icd_folder_path):
                 f.write(file + "\n")
 
         print(f"Copied {len(copied_files)} files to {target_folder}")
-        if skipped_as_files:
-            print(f"⏭️ Skipped {len(skipped_as_files)} AS files:")
-            for f in skipped_as_files:
-                print(f"  - {f}")
 
         return {
             "output_folder": target_folder,
@@ -204,9 +193,8 @@ def _step1_folder_mode(icd_folder_path):
             "copied_count": len(copied_files),
             "not_found": [],
             "icd_list": copied_files,
-            "skipped_due_to_hold": skipped_as_files,  # AS files をこっちに入れる
-            "added_due_to_addition": [],
-            "skipped_as_files": skipped_as_files  # 追加で記録
+            "skipped_due_to_hold": [],
+            "added_due_to_addition": []
         }
 
     except Exception as e:

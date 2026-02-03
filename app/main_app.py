@@ -19,7 +19,16 @@ class ShutsuzuuApp(TkinterDnD.Tk):
     def __init__(self):
         super().__init__()
         self.title(APP_TITLE)
-        self.geometry("800x550")
+        
+        # ウィンドウサイズと位置を設定（右側に配置）
+        window_width = 800
+        window_height = 550
+        screen_width = self.winfo_screenwidth()
+        screen_height = self.winfo_screenheight()
+        x_position = screen_width - window_width - 50  # 右端から50pxの余白
+        y_position = 300  # 上から300pxの位置
+        
+        self.geometry(f"{window_width}x{window_height}+{x_position}+{y_position}")
         self.configure(bg=BG_COLOR)
 
         # Icon
@@ -126,11 +135,13 @@ class ShutsuzuuApp(TkinterDnD.Tk):
         self.print_done_btn.pack(side=tk.LEFT, padx=15)
 
         self.exchange_done_btn = tk.Button(button_frame, text="交換完了", state=tk.DISABLED,
-                                           command=self.process_manager.after_exchange,
+                                           command=self.on_exchange_btn_click,
                                            bg="#9370db", fg="white", activebackground="#6a5acd",
                                            width=12, font=("Arial", 12, "bold"))
         self.exchange_done_btn.pack(side=tk.LEFT, padx=15)
-        self.exchange_done_btn.pack_forget()  # 初期状態で非表示
+        
+        # Flag để track trạng thái button
+        self.exchange_btn_mode = "first"  # "first" hoặc "retry"
 
         self.stop_btn = tk.Button(button_frame, text="非常停止", command=self.process_manager.emergency_stop,
                                   bg="#ff4500", fg="white", activebackground="#cc3700",
@@ -152,15 +163,12 @@ class ShutsuzuuApp(TkinterDnD.Tk):
             self.input_mode = "excel"
             self.folder_full_path = ""
             self.folder_entry.delete(0, tk.END)
-            self.exchange_done_btn.pack_forget()  # 交換完了ボタンを非表示
         else:  # folder
             self.excel_frame.pack_forget()
             self.folder_frame.pack(fill="x")
             self.input_mode = "folder"
             self.excel_full_path = ""
             self.excel_entry.delete(0, tk.END)
-            # 交換完了ボタンをprint_done_btnの右に表示
-            self.exchange_done_btn.pack(side=tk.LEFT, padx=15)
 
     def on_drop_excel(self, event):
         file_path = event.data.strip("{}")
@@ -185,3 +193,13 @@ class ShutsuzuuApp(TkinterDnD.Tk):
             self.status_label.config(text="ICDフォルダを確認しました。開始ボタンを押してください。", fg="blue")
         else:
             messagebox.showerror("エラー", "フォルダを選択してください。")
+
+    def on_exchange_btn_click(self):
+        """Button動的処理：交換完了 or 再張り切り"""
+        if self.exchange_btn_mode == "first":
+            # 最初のクリック：交換完了処理
+            self.process_manager.after_exchange()
+        else:
+            # 再度のクリック：再張り切り処理
+            self.process_manager.retry_exchange()
+

@@ -7,17 +7,19 @@ from tkinter import messagebox
 from utils.UI_helpers import (
     animate_loading, stop_loading, update_status,
     log_error, clear_error_box,
-    update_file_comparison_message, add_delete_xdw_buttons,
+    update_file_comparison_message, add_delete_xdw_buttons, add_delete_pdf_buttons,
 )
 from config.settings import STATUS_ERROR_COLOR, STATUS_WARN_COLOR
 
 from .create import step1_create_and_copy
 from .printing import step2_print_icd
 from .xdw_collection import step3_collect_xdw
-from .pdf_collection import step3_collect_pdf, step4_exchange_pdf, compare_icd_pdf
+from .pdf_collection import step3_collect_pdf, step4_exchange_pdf, compare_icd_pdf, retry_exchange_pdf
+from .rename_pdf import remove_suffix_3d_from_pdf
 from .clear import step4_cleanup
 from .clear_pdf import step4_cleanup_pdf
 from utils.cleanup_xdw import cleanup_xdw_on_user_request, show_no_delete_xdw_message
+from utils.cleanup_pdf import cleanup_pdf_on_user_request, show_no_delete_pdf_message
 from utils.excel_collect import add_ls_lk_excel_set_to_output
 from utils.excel_remove import excel_remove
 from utils.emergency_stop import emergency_manager, cleanup_on_stop
@@ -209,66 +211,17 @@ class ProcessManager:
             self._after_print_excel_mode()
 
     def _after_print_excel_mode(self):
-        """Excelモード: XDWファイルを収集"""
-        # Bước 3: Thu thập .xdw
-        update_status(self.app, "ステップ3: .xdwファイルを取得中...", 85)
-
-        # ✅ Gọi step3_collect_xdw với icd_list để so sánh trước khi rename
-        moved_count, missing, extra = step3_collect_xdw(
-            self.app.info["output_folder"],
-            self.app.info["docuworks_folder"],
-            self.app.info.get("icd_list", [])
-        )
-
-        if moved_count > 0:
-            update_status(self.app, f".xdwファイル {moved_count} 件を移動しました。", 95)
-
-            # ✅ Hiển thị cảnh báo nếu thiếu hoặc thừa file
-            if missing or extra:
-                warning_msg = (
-                    f"処理が完了しましたが、ファイル数が一致しません。\n"
-                    f"ICDファイル数: {len(self.app.info.get('icd_list', []))} 件\n"
-                    f".xdwファイル数: {moved_count} 件\n"
-                )
-                if missing:
-                    warning_msg += f"\n不足ファイル({len(missing)}):\n" + "\n".join(missing[:10])
-                    if len(missing) > 10:
-                        warning_msg += "\n... (残り省略)"
-                if extra:
-                    warning_msg += f"\n余分ファイル({len(extra)}):\n" + "\n".join(extra[:10])
-                    if len(extra) > 10:
-                        warning_msg += "\n... (残り省略)"
-
-                messagebox.showwarning("注意", warning_msg)
-                update_file_comparison_message(self.app, warning_msg, status="warning")
-
-                # ✅ Thêm nút cho phép xóa XDW nếu người dùng muốn
-                def on_yes():
-                    cleanup_xdw_on_user_request(self.app, self.app.info["output_folder"])
-
-                def on_no():
-                    show_no_delete_xdw_message(self.app)
-
-                add_delete_xdw_buttons(self.app, on_yes, on_no)
-            else:
-                success_msg = (
-                    f"処理が完了しました。\n移動した.xdwファイル数: {moved_count} 件\n"
-                    "印刷処理が正常に完了しました。"
-                )
-                messagebox.showinfo("情報", success_msg)
-                update_file_comparison_message(self.app, success_msg, status="info")
-
-            # Bước 4: Cleanup sau khi so sánh
-            update_status(self.app, "ステップ4: クリーンアップ中...", 98)
-            try:
-                step4_cleanup(self.app.info["output_folder"])
-                update_status(self.app, "完了！すべての処理が終了しました。", 100, color="green")
-                self._open_folder_safe(self.app.info["output_folder"])
-            except Exception as e:
-                log_error(self.app, f"クリーンアップに失敗しました: {str(e)}")
-
+        """Excelモード: PDFファイルを収集・処理"""
+        # Step 3: PDF変換（Ctrl+A, Alt+T, K, 0, 3を実行）
+        update_status(self.app, "ステップ3: PDFコンバージョン中...", 85)
+        
+        success = step3_collect_pdf(self.app.info["output_folder"])
+        
+        if success:
+            update_status(self.app, "PDFコンバージョン完了。交換完了ボタンを押してください。", 90, color=STATUS_WARN_COLOR)
+            self.app.exchange_done_btn.config(state="normal")
         else:
-            log_error(self.app, ".xdwファイルの取得に失敗しました。")
+            log_error(self.app, "PDFコンバージョンに失敗しました。")
 
     def _after_print_pdf_mode(self):
         """PDFモード: Ctrl+A, Alt+T, K, 0, 3 を実行して PDF化"""
@@ -283,9 +236,9 @@ class ProcessManager:
         else:
             log_error(self.app, "PDFコンバージョンに失敗しました。")
 
-    # Sự kiện: 交換完了（PDFモードのみ）
+    # Sự kiện: 交換完了（PDFモード）
     def after_exchange(self):
-        """PDFモード: PDF検索・コピー・クリーンアップ"""
+        """PDF処理: PDF検索・コピー・クリーンアップ（Folder/Excelモード共通）"""
         if emergency_manager.is_stop_requested():
             print("⚠ 非常停止が押されたため、交換完了処理を中断します。")
             self.app.status_label.config(text="処理は非常停止で中断されました。", fg=STATUS_ERROR_COLOR)
@@ -296,16 +249,22 @@ class ProcessManager:
         success = step4_exchange_pdf(self.app.info["output_folder"])
         
         if success:
-            # PDF ファイル以外を削除（クリーンアップ）
+            # PDF ファイル以外を削除（クリーンアップ）- ICD ファイルを削除
             update_status(self.app, "ステップ5: クリーンアップ中...", 98)
             step4_cleanup_pdf(self.app.info["output_folder"])
             
-            # ICD と PDF を比較
+            # ICD と PDF を比較（-3D削除前に比較する必要がある）
             update_status(self.app, "ステップ6: ファイル比較中...", 99)
             missing, extra = compare_icd_pdf(
                 self.app.info["output_folder"],
                 self.app.info.get("icd_list", [])
             )
+            
+            # PDFの名前から "-3D" を削除
+            update_status(self.app, "ステップ7: PDF名前変更中 (-3D を削除)...", 99)
+            rename_log = remove_suffix_3d_from_pdf(self.app.info["output_folder"])
+            if rename_log:
+                print(f"✅ {len(rename_log)} 個のPDFファイルを名前変更しました")
             
             # 結果を確認
             if missing or extra:
@@ -325,6 +284,16 @@ class ProcessManager:
 
                 messagebox.showwarning("注意", warning_msg)
                 update_file_comparison_message(self.app, warning_msg, status="warning")
+                # ファイル数が一致しない場合、再張り切りボタンを表示（button text を変更）
+                self.app.exchange_btn_mode = "retry"
+                self.app.after(0, lambda: self.app.exchange_done_btn.config(text="再張り切り", state="normal"))
+                
+                # PDF削除ボタンをerror_boxに表示
+                add_delete_pdf_buttons(
+                    self.app,
+                    on_yes_callback=lambda: cleanup_pdf_on_user_request(self.app, self.app.info["output_folder"]),
+                    on_no_callback=lambda: show_no_delete_pdf_message(self.app)
+                )
             else:
                 success_msg = (
                     f"処理が完了しました。\n"
@@ -340,3 +309,77 @@ class ProcessManager:
             self._open_folder_safe(self.app.info["output_folder"])
         else:
             log_error(self.app, "PDF検索に失敗しました。")
+
+    # イベント: 再張り切り
+    def retry_exchange(self):
+        """再張り切り: DocuWorksからのみ貼り付けを実行"""
+        if emergency_manager.is_stop_requested():
+            print("⚠ 非常停止が押されたため、再張り切り処理を中断します。")
+            self.app.status_label.config(text="処理は非常停止で中断されました。", fg=STATUS_ERROR_COLOR)
+            return
+
+        if not self.app.info or not self.app.info.get("output_folder"):
+            messagebox.showerror("エラー", "出力フォルダが見つかりません。")
+            return
+
+        update_status(self.app, "再張り切り処理中...", 95)
+        
+        success = retry_exchange_pdf(self.app.info["output_folder"])
+        
+        if success:
+            # PDF ファイル以外を削除（クリーンアップ）- ICD ファイルを削除
+            update_status(self.app, "クリーンアップ中...", 98)
+            step4_cleanup_pdf(self.app.info["output_folder"])
+            
+            # ICD と PDF を比較
+            update_status(self.app, "ファイル比較中...", 99)
+            missing, extra = compare_icd_pdf(
+                self.app.info["output_folder"],
+                self.app.info.get("icd_list", [])
+            )
+            
+            # PDFの名前から "-3D" を削除
+            update_status(self.app, "PDF名前変更中 (-3D を削除)...", 99)
+            rename_log = remove_suffix_3d_from_pdf(self.app.info["output_folder"])
+            if rename_log:
+                print(f"✅ {len(rename_log)} 個のPDFファイルを名前変更しました")
+            
+            # 結果を確認
+            if missing or extra:
+                warning_msg = (
+                    f"処理が完了しましたが、ファイル数が一致しません。\n"
+                    f"ICDファイル数: {len(self.app.info.get('icd_list', []))} 件\n"
+                    f"PDFファイル数: {len([f for f in os.listdir(self.app.info['output_folder']) if f.lower().endswith('.pdf')])} 件\n"
+                )
+                if missing:
+                    warning_msg += f"\n不足ファイル({len(missing)}):\n" + "\n".join(missing[:10])
+                    if len(missing) > 10:
+                        warning_msg += "\n... (残り省略)"
+                if extra:
+                    warning_msg += f"\n余分ファイル({len(extra)}):\n" + "\n".join(extra[:10])
+                    if len(extra) > 10:
+                        warning_msg += "\n... (残り省略)"
+
+                messagebox.showwarning("注意", warning_msg)
+                update_file_comparison_message(self.app, warning_msg, status="warning")
+                # 再度ファイル数が一致しない場合、ボタンは再張り切り状態のまま保つ（何度でも試せる）
+                self.app.exchange_btn_mode = "retry"
+                self.app.after(0, lambda: self.app.exchange_done_btn.config(text="再張り切り", state="normal"))
+            else:
+                success_msg = (
+                    f"処理が完了しました。\n"
+                    f"ICDファイル数: {len(self.app.info.get('icd_list', []))} 件\n"
+                    f"PDFファイル数: {len([f for f in os.listdir(self.app.info['output_folder']) if f.lower().endswith('.pdf')])} 件\n"
+                    f"ファイル数が一致しました！"
+                )
+                messagebox.showinfo("情報", success_msg)
+                update_file_comparison_message(self.app, success_msg, status="success")
+            
+            update_status(self.app, "完了！再張り切り処理が終了しました。", 100, color="green")
+            # 成功した場合のみ、ボタンを交換完了に戻す
+            self.app.exchange_btn_mode = "first"
+            self.app.after(0, lambda: self.app.exchange_done_btn.config(text="交換完了", state="disabled"))
+            self._open_folder_safe(self.app.info["output_folder"])
+        else:
+            log_error(self.app, "再張り切り処理に失敗しました。")
+

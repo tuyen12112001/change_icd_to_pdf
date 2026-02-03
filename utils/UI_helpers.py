@@ -164,6 +164,62 @@ def add_delete_xdw_buttons(app, on_yes_callback, on_no_callback):
     
     app.after(0, _add_buttons)
 
+def add_delete_pdf_buttons(app, on_yes_callback, on_no_callback):
+    """
+    ユーザーが PDF ファイルを削除するかどうかを選択できるように、エラー ボックスに「はい」「いいえ」の 2 つのボタンを追加します。
+    
+    Args:
+        app: ShutsuzuuApp instance
+        on_yes_callback: ユーザーが「削除する」を押した際に呼び出される関数
+        on_no_callback: ユーザーが「削除しない」を押した際に呼び出される関数
+    """
+    def _add_buttons():
+        app.error_box.config(state=tk.NORMAL)
+        
+        # ボタンの前にプロンプ​​トを追加する
+        app.error_box.insert("end", "\n📋 コピーされたPDFファイルを削除しますか?\n", "info")
+        
+        # 2つのボタンを含むフレームを作成する
+        button_frame = tk.Frame(app.error_box, bg="white")
+        
+        yes_btn = tk.Button(
+            button_frame,
+            text="削除する",
+            command=on_yes_callback,
+            bg="#90EE90",
+            fg="black",
+            width=15,
+            padx=5,
+            pady=5,
+            cursor="hand2"
+        )
+        yes_btn.pack(side=tk.LEFT, padx=5)
+        
+        no_btn = tk.Button(
+            button_frame,
+            text="削除しない",
+            command=on_no_callback,
+            bg="#FFB6C6",
+            fg="black",
+            width=15,
+            padx=5,
+            pady=5,
+            cursor="hand2"
+        )
+        no_btn.pack(side=tk.LEFT, padx=5)
+        
+        # 空白行を挿入してボタンフレームを埋め込む
+        app.error_box.insert("end", "")
+        app.error_box.window_create("end", window=button_frame)
+        app.error_box.insert("end", "\n")
+        
+        app.error_box.config(state=tk.DISABLED)
+        app.error_box.see("end")
+    
+    app.after(0, _add_buttons)
+
+
+
 def animate_loading(app, base_text="処理中", dots=3, interval=500):
     if not hasattr(app, "loading_count"):
         app.loading_count = 0
