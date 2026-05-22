@@ -13,6 +13,9 @@ from config.settings import (
 from utils.UI_helpers import (
     blink_widget
 )
+from utils.check_ICAD_and_Docuworks import (
+    activate_docuworks_and_open_user_folder,
+)
 from process.process_manager import ProcessManager
 
 class ShutsuzuuApp(TkinterDnD.Tk):
@@ -22,7 +25,7 @@ class ShutsuzuuApp(TkinterDnD.Tk):
         
         # ウィンドウサイズと位置を設定（右側に配置）
         window_width = 800
-        window_height = 550
+        window_height = 600
         screen_width = self.winfo_screenwidth()
         screen_height = self.winfo_screenheight()
         x_position = screen_width - window_width - 50  # 右端から50pxの余白
@@ -46,7 +49,8 @@ class ShutsuzuuApp(TkinterDnD.Tk):
         self.info = None
         self.excel_full_path = ""
         self.folder_full_path = ""
-        self.input_mode = "excel"  # "excel" または "folder"
+        self.input_mode = "excel"  # "excel" のみ使用
+        self.mode_var = tk.StringVar(value="excel")
         self.is_running = False
 
         # --- UI を作成する前にプロセス マネージャーを初期化する ---
@@ -60,41 +64,60 @@ class ShutsuzuuApp(TkinterDnD.Tk):
         header = tk.Label(self, text=HEADER_TEXT, font=("Arial", 24, "bold"), fg="#004080", bg=BG_COLOR)
         header.pack(pady=15)
 
-        # 入力モード選択
+        # モード選択
         mode_frame = tk.Frame(self, bg=BG_COLOR)
-        mode_frame.pack(pady=5)
-        tk.Label(mode_frame, text="入力モード:", font=("Arial", 11, "bold"), bg=BG_COLOR).pack(side=tk.LEFT, padx=5)
-        
-        self.mode_var = tk.StringVar(value="excel")
-        tk.Radiobutton(mode_frame, text="Excelファイル", variable=self.mode_var, value="excel", 
-                      command=self.on_mode_changed, font=("Arial", 10), bg=BG_COLOR).pack(side=tk.LEFT, padx=5)
-        tk.Radiobutton(mode_frame, text="ICDフォルダ", variable=self.mode_var, value="folder", 
-                      command=self.on_mode_changed, font=("Arial", 10), bg=BG_COLOR).pack(side=tk.LEFT, padx=5)
+        mode_frame.pack(pady=(0, 8))
+        tk.Radiobutton(
+            mode_frame,
+            text="Excel",
+            variable=self.mode_var,
+            value="excel",
+            command=self.on_mode_change,
+            bg=BG_COLOR,
+            font=("Arial", 11, "bold"),
+        ).pack(side=tk.LEFT, padx=10)
+        tk.Radiobutton(
+            mode_frame,
+            text="DocuWorks",
+            variable=self.mode_var,
+            value="docuworks",
+            command=self.on_mode_change,
+            bg=BG_COLOR,
+            font=("Arial", 11, "bold"),
+        ).pack(side=tk.LEFT, padx=10)
 
-        # 入力フレーム用のコンテナ（固定位置）
+        # 入力フレーム用のコンテナ（モードで表示切替）
         self.input_container = tk.Frame(self, bg=BG_COLOR)
         self.input_container.pack(pady=10, padx=20, fill="x")
 
-        # Excelファイル入力フレーム
+        # ExcelモードUI
         self.excel_frame = tk.Frame(self.input_container, bg=PANEL_BG, bd=2, relief="groove")
-        tk.Label(self.excel_frame, text="Excelファイルをドラッグ＆ドロップしてください", font=("Arial", 12, "bold"), bg=PANEL_BG).pack(pady=5)
+        tk.Label(self.excel_frame, text="Excelファイル選択", font=("Arial", 12, "bold"), bg=PANEL_BG).pack(pady=(6, 2))
+        tk.Label(self.excel_frame, text="Excelファイルをドラッグ＆ドロップしてください", font=("Arial", 12), bg=PANEL_BG).pack(pady=(0, 4))
+
         self.excel_entry = tk.Entry(self.excel_frame, width=80, font=("Arial", 14, "bold"), bg="white",
                                     highlightthickness=2, highlightbackground="#004080", highlightcolor="#004080")
-        self.excel_entry.pack(pady=5, ipady=4, padx=10)
-        self.excel_entry.drop_target_register(DND_FILES)
-        self.excel_entry.dnd_bind('<<Drop>>', self.on_drop_excel)
+        self.excel_entry.pack(padx=10, pady=(0, 8), ipady=4)
 
-        # ICDフォルダ入力フレーム
-        self.folder_frame = tk.Frame(self.input_container, bg=PANEL_BG, bd=2, relief="groove")
-        tk.Label(self.folder_frame, text="ICDフォルダをドラッグ＆ドロップしてください", font=("Arial", 12, "bold"), bg=PANEL_BG).pack(pady=5)
-        self.folder_entry = tk.Entry(self.folder_frame, width=80, font=("Arial", 14, "bold"), bg="white",
-                                     highlightthickness=2, highlightbackground="#004080", highlightcolor="#004080")
-        self.folder_entry.pack(pady=5, ipady=4, padx=10)
-        self.folder_entry.drop_target_register(DND_FILES)
-        self.folder_entry.dnd_bind('<<Drop>>', self.on_drop_folder)
+        self.excel_frame.drop_target_register(DND_FILES)  # type: ignore[attr-defined]
+        self.excel_frame.dnd_bind('<<Drop>>', self.on_drop_excel)  # type: ignore[attr-defined]
+        self.excel_entry.drop_target_register(DND_FILES)  # type: ignore[attr-defined]
+        self.excel_entry.dnd_bind('<<Drop>>', self.on_drop_excel)  # type: ignore[attr-defined]
 
-        # 初期状態ではExcelフレームを表示
-        self.excel_frame.pack(fill="x")
+        # DocuWorksモードUI
+        self.test_frame = tk.Frame(self.input_container, bg=PANEL_BG, bd=2, relief="groove")
+        tk.Label(self.test_frame, text="DocuWorks Desk", font=("Arial", 12, "bold"), bg=PANEL_BG).pack(pady=(12, 8))
+        self.docuworks_btn = tk.Button(
+            self.test_frame,
+            text="Active DocuWorks",
+            command=self.on_docuworks_test_click,
+            bg="#1e90ff",
+            fg="white",
+            activebackground="#1c7ed6",
+            width=24,
+            font=("Arial", 12, "bold"),
+        )
+        self.docuworks_btn.pack(pady=(2, 14))
 
         # ステータス + プログレスバー
         status_frame = tk.Frame(self, bg=PANEL_BG, bd=2, relief="groove")
@@ -120,58 +143,69 @@ class ShutsuzuuApp(TkinterDnD.Tk):
         self.error_box.tag_config("warning", foreground="#cc6600")
 
         # ボタン
-        button_frame = tk.Frame(self, bg=BG_COLOR)
-        button_frame.pack(pady=20)
+        self.button_frame = tk.Frame(self, bg=BG_COLOR)
+        self.button_frame.pack(pady=20)
 
-        self.start_btn = tk.Button(button_frame, text="開始", command=self.process_manager.start_process,
+        self.start_btn = tk.Button(self.button_frame, text="開始", command=self.process_manager.start_process,
                                    bg="#32cd32", fg="white", activebackground="#228b22",
                                    width=12, font=("Arial", 12, "bold"))
         self.start_btn.pack(side=tk.LEFT, padx=15)
 
-        self.print_done_btn = tk.Button(button_frame, text="印刷完了", state=tk.DISABLED,
+        self.print_done_btn = tk.Button(self.button_frame, text="印刷完了", state=tk.DISABLED,
                                         command=self.process_manager.after_print,
                                         bg="#ffa500", fg="white", activebackground="#ff8c00",
                                         width=12, font=("Arial", 12, "bold"))
         self.print_done_btn.pack(side=tk.LEFT, padx=15)
 
-        self.exchange_done_btn = tk.Button(button_frame, text="交換完了", state=tk.DISABLED,
+        # 交換完了ボタンは非表示（将来互換のためインスタンスのみ保持）
+        self.exchange_done_btn = tk.Button(self.button_frame, text="交換完了", state=tk.DISABLED,
                                            command=self.on_exchange_btn_click,
                                            bg="#9370db", fg="white", activebackground="#6a5acd",
                                            width=12, font=("Arial", 12, "bold"))
-        self.exchange_done_btn.pack(side=tk.LEFT, padx=15)
         
         # Flag để track trạng thái button
         self.exchange_btn_mode = "first"  # "first" hoặc "retry"
 
-        self.stop_btn = tk.Button(button_frame, text="非常停止", command=self.process_manager.emergency_stop,
+        self.stop_btn = tk.Button(self.button_frame, text="非常停止", command=self.process_manager.emergency_stop,
                                   bg="#ff4500", fg="white", activebackground="#cc3700",
                                   width=12, font=("Arial", 12, "bold"))
         self.stop_btn.pack(side=tk.LEFT, padx=15)
 
-        self.quit_btn = tk.Button(button_frame, text="終了", command=self.quit,
+        self.quit_btn = tk.Button(self.button_frame, text="終了", command=self.quit,
                                   bg="#dc143c", fg="white", activebackground="#a40000",
                                   width=12, font=("Arial", 12, "bold"))
         self.quit_btn.pack(side=tk.RIGHT, padx=15)
 
-    # --- UI イベント ---
-    def on_mode_changed(self):
-        """入力モードが変更されたとき"""
-        mode = self.mode_var.get()
-        if mode == "excel":
-            self.folder_frame.pack_forget()
-            self.excel_frame.pack(fill="x")
-            self.input_mode = "excel"
-            self.folder_full_path = ""
-            self.folder_entry.delete(0, tk.END)
-        else:  # folder
-            self.excel_frame.pack_forget()
-            self.folder_frame.pack(fill="x")
-            self.input_mode = "folder"
-            self.excel_full_path = ""
-            self.excel_entry.delete(0, tk.END)
+        # 初期モード反映
+        self.on_mode_change()
 
+    def on_mode_change(self):
+        selected_mode = self.mode_var.get()
+        self.input_mode = "excel" if selected_mode == "excel" else "docuworks"
+
+        self.excel_frame.pack_forget()
+        self.test_frame.pack_forget()
+
+        if selected_mode == "excel":
+            self.excel_frame.pack(fill="x")
+            self.button_frame.pack(pady=20)
+            self.status_label.config(text="Excelファイルを選択してください。", fg="blue")
+        else:
+            self.test_frame.pack(fill="x")
+            self.button_frame.pack_forget()
+            self.status_label.config(text="DocuWorksを起動してください。", fg="blue")
+
+    # --- UI イベント ---
     def on_drop_excel(self, event):
-        file_path = event.data.strip("{}")
+        file_path = ""
+        try:
+            dropped = self.tk.splitlist(event.data)
+            if dropped:
+                file_path = dropped[0]
+        except Exception:
+            file_path = event.data.strip("{}")
+
+        file_path = file_path.strip().strip('"')
         if file_path.lower().endswith((".xlsx", ".xls")):
             self.excel_entry.delete(0, tk.END)
             self.excel_entry.insert(0, os.path.basename(file_path))
@@ -182,17 +216,12 @@ class ShutsuzuuApp(TkinterDnD.Tk):
         else:
             messagebox.showerror("エラー", "Excelファイルを選択してください。")
 
-    def on_drop_folder(self, event):
-        folder_path = event.data.strip("{}")
-        if os.path.isdir(folder_path):
-            self.folder_entry.delete(0, tk.END)
-            self.folder_entry.insert(0, os.path.basename(folder_path))
-            self.folder_full_path = folder_path
-            blink_widget(self.folder_entry)
-            self.print_done_btn.config(state=tk.DISABLED)
-            self.status_label.config(text="ICDフォルダを確認しました。開始ボタンを押してください。", fg="blue")
+    def on_docuworks_test_click(self):
+        activated = activate_docuworks_and_open_user_folder()
+        if activated:
+            self.status_label.config(text="DocuWorksでPDFフォルダを開きました。", fg="blue")
         else:
-            messagebox.showerror("エラー", "フォルダを選択してください。")
+            messagebox.showerror("エラー", "DocuWorksでPDFフォルダを開けませんでした。")
 
     def on_exchange_btn_click(self):
         """Button動的処理：交換完了 or 再張り切り"""

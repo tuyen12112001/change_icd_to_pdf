@@ -15,7 +15,8 @@ import subprocess
 def search_gradually(base_path, workpiece):
     max_depth = 4
     found_file = None
-    black_keywords = ['.pdf', '-OLD', '.xls', '-old','-E']
+    # Blacklist: các revision codes hoặc suffixes không muốn (H, E, B, OLD, v.v.)
+    blacklist_suffixes = ['E', 'B', 'OLD', 'old', 'pdf', 'xlsx', 'xls']
     
     # 括弧を除去（[ABC123D] → ABC123D）
     if workpiece.startswith('[') and workpiece.endswith(']'):
@@ -24,22 +25,37 @@ def search_gradually(base_path, workpiece):
     for depth in range(1, max_depth + 1):
         pattern = base_path + ('*\\' * depth) + f'*{workpiece}*.icd'
         for f in glob.iglob(pattern, recursive=True):
-            if any(keyword in os.path.basename(f) for keyword in black_keywords):
-                continue
-            filename = os.path.splitext(os.path.basename(f))[0]
+            filename_with_ext = os.path.basename(f)
+            filename = os.path.splitext(filename_with_ext)[0]
+            
             # 完全一致のファイル名を優先
             if filename == workpiece:
                 return f
-            # workpieceで始まるファイル名のみ取得（接頭辞なし）
+            
+            # workpieceで始まるファイル名のみ取得
             if filename.startswith(workpiece):
-                # (M)、-OLDなど不要な接尾辞を除外
+                # Suffix を取得（workpiece以降の部分）
                 suffix = filename[len(workpiece):]
-                # 接尾辞が-3D、-2Dなどのみ許可
-                if re.fullmatch(r'-\w+', suffix):
+                
+                # Suffix が空（完全一致）ならOK
+                if not suffix:
+                    return f
+                
+                # Suffix が -XXX 形式の場合、XXX部分をチェック
+                if suffix.startswith('-'):
+                    suffix_code = suffix[1:]  # '-' を削除
+                    
+                    # Blacklist に含まれる suffix をスキップ
+                    if suffix_code in blacklist_suffixes:
+                        continue
+                    
+                    # それ以外の suffix（-3D, -2D など）は許可
                     if not found_file:
                         found_file = f
+        
         if found_file:
             break
+    
     return found_file
 
 def search_number(workpiece: str, mode: str = "0"):

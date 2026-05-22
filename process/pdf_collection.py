@@ -47,7 +47,6 @@ def step3_collect_pdf(output_dir):
             return False
         
         time.sleep(1)
-        print(f"📝 PDF コンバージョンコマンドを実行中...")
         
         # Ctrl+A を実行
         pyautogui.hotkey("ctrl", "a")
@@ -73,7 +72,6 @@ def step3_collect_pdf(output_dir):
         pyautogui.press("3")
         time.sleep(1.0)
         
-        print("✅ PDFコンバージョンコマンドを実行しました")
         return True
 
     except Exception as e:
@@ -103,7 +101,6 @@ def step4_exchange_pdf(output_dir):
             return False
         
         time.sleep(1)
-        print(f"🔍 XDWファイルを検索中: *.xdw")
         
         # Ctrl+F を実行（検索）
         pyautogui.hotkey("ctrl", "f")
@@ -122,7 +119,6 @@ def step4_exchange_pdf(output_dir):
         pyautogui.press("enter")
         time.sleep(3)
         
-        print("✅ XDWファイル検索完了。ファイルを選択・削除中...")
         
         # Ctrl+A を実行（XDWファイルを全て選択）
         pyautogui.hotkey("ctrl", "a")
@@ -138,7 +134,6 @@ def step4_exchange_pdf(output_dir):
         pyautogui.press("enter")
         time.sleep(1)
         
-        print("✅ XDWファイルを削除しました。元のフォルダに戻る中...")
         
         # Alt + Left 7回を実行（フォルダを7階層上に戻る）
         pyautogui.keyDown("alt")
@@ -148,7 +143,6 @@ def step4_exchange_pdf(output_dir):
         pyautogui.keyUp("alt")
         time.sleep(1)
         
-        print("✅ 元のフォルダに戻りました。貼り付け処理中...")
         
         # Alt を押して V, A, A を順番に実行
         pyautogui.keyDown("alt")
@@ -161,7 +155,6 @@ def step4_exchange_pdf(output_dir):
         pyautogui.keyUp("alt")
         time.sleep(1)
         
-        print("✅ 貼り付け完了。ファイルを全て選択・コピー中...")
         
         # Ctrl+A を実行（全てを選択）
         pyautogui.hotkey("ctrl", "a")
@@ -171,7 +164,6 @@ def step4_exchange_pdf(output_dir):
         pyautogui.hotkey("ctrl", "c")
         time.sleep(0.5)
         
-        print("✅ ファイルをコピーしました。出力フォルダを開く中...")
         
         # 出力フォルダを開く
         os.startfile(output_dir)
@@ -181,7 +173,6 @@ def step4_exchange_pdf(output_dir):
         pyautogui.hotkey("ctrl", "v")
         time.sleep(1.5)
         
-        print("✅ ファイルを出力フォルダに貼り付けました")
         return True
 
     except Exception as e:
@@ -208,7 +199,6 @@ def retry_exchange_pdf(output_dir):
             return False
         
         time.sleep(1)
-        print(f"📋 貼り付け処理を実行中...")
         
         # Alt を押して V, A, A を順番に実行
         pyautogui.keyDown("alt")
@@ -221,7 +211,6 @@ def retry_exchange_pdf(output_dir):
         pyautogui.keyUp("alt")
         time.sleep(1)
         
-        print("✅ 貼り付け完了。ファイルを全て選択・コピー中...")
         
         # Ctrl+A を実行（全てを選択）
         pyautogui.hotkey("ctrl", "a")
@@ -231,7 +220,6 @@ def retry_exchange_pdf(output_dir):
         pyautogui.hotkey("ctrl", "c")
         time.sleep(0.5)
         
-        print("✅ ファイルをコピーしました。出力フォルダを開く中...")
         
         # 出力フォルダを開く
         os.startfile(output_dir)
@@ -241,87 +229,43 @@ def retry_exchange_pdf(output_dir):
         pyautogui.hotkey("ctrl", "v")
         time.sleep(1.5)
         
-        print("✅ ファイルを出力フォルダに貼り付けました")
         return True
 
     except Exception as e:
         print(f"❌ 貼り付け処理中にエラーが発生しました: {e}")
         return False
 
-# ===== 旧 step4_exchange_pdf 関数（無効化） =====
-# def step4_exchange_pdf_old(output_dir):
-#     """
-#     ステップ4 (PDFモード - 交換完了 - 旧実装):
-#     - DocuWorks ウィンドウをアクティブにする
-#     - Ctrl+F: 検索ダイアログを開く
-#     - Enter: 確認
-#     - *.pdf を入力
-#     - Enter: 検索実行
-#     - Ctrl+A: 全てを選択
-#     - Ctrl+C: コピー
-#     - Ctrl+V: 出力フォルダに貼り付け
-#     """
-#     try:
-#         print(f"🔍 DocuWorks ウィンドウをアクティブにしています...")
-#         
-#         # DocuWorks を起動または確認
-#         if not ensure_docuworks_running():
-#             print("❌ DocuWorks をアクティブ化できません。")
-#             return False
-#         
-#         time.sleep(1)
-#         print(f"🔍 PDFファイルを検索中: *.pdf")
-#         
-#         # Ctrl+F を実行
-#         pyautogui.hotkey("ctrl", "f")
-#         time.sleep(0.5)
-#         
-#         # Enter を実行
-#         pyautogui.press("enter")
-#         time.sleep(0.3)
-#         
-#         # *.pdf を入力
-#         pyperclip.copy("*.pdf")
-#         pyautogui.hotkey("ctrl", "v")
-#         time.sleep(0.3)
-#         
-#         # Enter を実行（検索実行）
-#         pyautogui.press("enter")
-#         time.sleep(3)
-#         
-#         print("✅ PDFファイル検索完了。ファイルを選択中...")
-#         
-#         # Ctrl+A を実行（全てを選択）
-#         pyautogui.hotkey("ctrl", "a")
-#         time.sleep(0.5)
-#         
-#         # Ctrl+C を実行（コピー）
-#         pyautogui.hotkey("ctrl", "c")
-#         time.sleep(0.5)
-#         
-#         print("✅ PDFファイルをコピーしました。元のフォルダに戻る中...")
-#         
-#         # Alt + Left 7回を実行（フォルダを7階層上に戻る）
-#         pyautogui.keyDown("alt")
-#         for i in range(7):
-#             pyautogui.press("left")
-#             time.sleep(0.2)
-#         pyautogui.keyUp("alt")
-#         time.sleep(1)
-#         
-#         print("✅ 元のフォルダに戻りました。出力フォルダを開く中...")
-#         
-#         # 出力フォルダを開く
-#         os.startfile(output_dir)
-#         time.sleep(2)
-#         
-#         # Ctrl+V を実行（貼り付け）
-#         pyautogui.hotkey("ctrl", "v")
-#         time.sleep(1.5)
-#         
-#         print("✅ PDFファイルを出力フォルダに貼り付けました")
-#         return True
-#     
-#     except Exception as e:
-#         print(f"❌ PDF検索・コピー中にエラーが発生しました: {e}")
-#         return False
+
+def step_copy_all_from_docuworks_to_output(output_dir):
+    """
+    印刷完了ボタン用のシンプル処理:
+    - DocuWorksをアクティブ
+    - Ctrl+A, Ctrl+C
+    - output_dir を開いて Ctrl+V
+    """
+    try:
+        print("🔍 DocuWorks ウィンドウをアクティブにしています...")
+        if not ensure_docuworks_running():
+            print("❌ DocuWorks をアクティブ化できません。")
+            return False
+
+        time.sleep(0.8)
+        pyautogui.hotkey("ctrl", "a")
+        time.sleep(0.3)
+        pyautogui.hotkey("ctrl", "c")
+        time.sleep(0.4)
+
+        if not output_dir or not os.path.isdir(output_dir):
+            print(f"❌ 出力フォルダが存在しません: {output_dir}")
+            return False
+
+        os.startfile(output_dir)
+        time.sleep(1.2)
+        pyautogui.hotkey("ctrl", "v")
+        time.sleep(1.0)
+
+        print("✅ DocuWorks から出力フォルダへコピー完了")
+        return True
+    except Exception as e:
+        print(f"❌ 印刷完了処理中にエラーが発生しました: {e}")
+        return False

@@ -3,6 +3,8 @@
 import time
 import pyautogui
 import pyperclip
+import win32clipboard
+import win32con
 import pygetwindow as gw
 from utils.emergency_stop import emergency_manager
 # An toàn & ổn định
@@ -65,6 +67,24 @@ def _is_popup_active(title_keyword: str = "docuworks", screen_ratio_threshold: f
         # Nếu không đọc được active window, an toàn hơn là coi như KHÔNG popup
         return False
 
+def _get_path_from_clipboard():
+    """Lấy đường dẫn file/folder từ Clipboard (CF_HDROP)."""
+    path = None
+    try:
+        win32clipboard.OpenClipboard()
+        if win32clipboard.IsClipboardFormatAvailable(win32con.CF_HDROP):
+            data = win32clipboard.GetClipboardData(win32con.CF_HDROP)
+            if data:
+                path = data[0] # Lấy đường dẫn đầu tiên
+    except Exception:
+        pass
+    finally:
+        try:
+            win32clipboard.CloseClipboard()
+        except:
+            pass
+    return path
+
 def create_docuworks_folder_unique(base_name: str, ensure_docuworks_running, max_attempts: int = 20):
     """
     Tạo thư mục trong DocuWorks với tên `base_name`.
@@ -75,17 +95,17 @@ def create_docuworks_folder_unique(base_name: str, ensure_docuworks_running, max
       - Truyền vào ensure_docuworks_running (hàm của bạn; hàm này đã đảm bảo DocuWorks chạy/active).
 
     Returns:
-      - Tên cuối cùng đã tạo (str) hoặc None nếu thất bại.
+      - Tuple (folder_name, folder_path) hoặc (None, None) nếu thất bại.
     """
     # 1) Đảm bảo DocuWorks sẵn sàng theo logic của bạn
     try:
         ok = ensure_docuworks_running()
         if not ok:
             print("❌ DocuWorks chưa sẵn sàng.")
-            return None
+            return None, None
     except Exception as e:
         print(f"❌ Lỗi ensure DocuWorks: {e}")
-        return None
+        return None, None
 
     # 2) Mở hộp thoại tạo thư mục (một lần)
     _open_new_folder_dialog()
@@ -96,7 +116,7 @@ def create_docuworks_folder_unique(base_name: str, ensure_docuworks_running, max
         
         if emergency_manager.is_stop_requested():
             print("⚠ 非常停止が押されたため、DocuWorksフォルダ作成を中断します。")
-            return None
+            return None, None
 
         _paste_and_confirm(attempt_name)
 
@@ -107,7 +127,16 @@ def create_docuworks_folder_unique(base_name: str, ensure_docuworks_running, max
             attempt_name = attempt_name + "1"
             continue
 
+        # --- THÀNH CÔNG: Lấy đường dẫn ngay lập tức ---
+        time.sleep(0.5) # Đợi UI ổn định sau khi Enter
+        pyautogui.hotkey('ctrl', 'c') # Copy folder vừa tạo (đang được chọn)
+        time.sleep(0.2)
+        real_path = _get_path_from_clipboard()
+        
         print(f"✅ DocuWorksで新しいフォルダを作成しました: {attempt_name}")
-        return attempt_name
+        print(f"📍 取得したパス: {real_path}")
+        
+        return attempt_name, real_path
 
     print("❌ 既存フォルダ名との重複により、最大試行回数を超えました。作成に失敗しました。")
+    return None, None

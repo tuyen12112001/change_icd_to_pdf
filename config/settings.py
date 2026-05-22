@@ -21,8 +21,7 @@ ICON_DIR   = os.path.join(BASE_DIR, "icon")
 
 
 ICON_PATH = os.path.join(ICON_DIR, "icon.ico")  
-IMAGE1_PATH = os.path.join(ASSETS_DIR, "1.png")
-IMAGE2_PATH = os.path.join(ASSETS_DIR, "2.png")  
+IMAGE3_PATH = os.path.join(ASSETS_DIR, "3.png")
 
 
 
@@ -37,6 +36,10 @@ STATUS_ERROR_COLOR = "red"
 # UI text
 APP_TITLE = "出図ツール ver 2.1"
 HEADER_TEXT = "出図ツール"
+
+# DocuWorks target folder (adjust as needed)
+DOCUWORKS_TARGET_FOLDER = r"C:\Users\510-tuyen\OneDrive - 明和工業株式会社\ドキュメント\Fuji Xerox\DocuWorks\DWFolders\ユーザーフォルダ\PDF保存場所_1"
+
 
 # Progress bar default length
 PROGRESS_LENGTH = 600

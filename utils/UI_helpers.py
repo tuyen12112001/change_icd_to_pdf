@@ -2,6 +2,17 @@
 # utils/ui_helpers.py
 import tkinter as tk
 
+def _shorten_message(message, max_lines=3, max_chars=220):
+    text = str(message).strip()
+    if len(text) > max_chars:
+        text = text[:max_chars].rstrip() + " ..."
+
+    lines = text.splitlines()
+    if len(lines) > max_lines:
+        text = "\n".join(lines[:max_lines]).rstrip() + "\n..."
+
+    return text
+
 def blink_widget(widget, times=3, color="#ffcccc", interval=200):
     original_color = widget.cget("bg")
     def toggle(count):
@@ -32,7 +43,8 @@ def update_error_box(app, message, status="error", exclusive_pairs=(("warning", 
         # アイコンの種類
         icons = {"error": "❌", "success": "✅", "info": "ℹ️", "warning": "⚠️"}
         icon = icons.get(status, "•")
-        text = f"{icon} {message}\n"
+        short_message = _shorten_message(message)
+        text = f"{icon} {short_message}\n"
 
         # タグを挿入して割り当てる
         app.error_box.insert("end", text, status)
@@ -81,7 +93,8 @@ def update_file_comparison_message(app, message, status="error"):
         # アイコンの種類
         icons = {"error": "❌", "success": "✅", "warning": "⚠️", "info": "ℹ️"}
         icon = icons.get(status, "•")
-        text = f"{icon} {message}\n"
+        short_message = _shorten_message(message, max_lines=4, max_chars=320)
+        text = f"{icon} {short_message}\n"
 
         # 新しいメッセージを挿入
         app.error_box.insert("end", text, status)

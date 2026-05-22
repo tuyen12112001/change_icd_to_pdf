@@ -3,13 +3,14 @@ import re
 from pathlib import Path
 
 
-def remove_suffix_3d_from_pdf(output_folder):
+def remove_suffix_3d_from_pdf(output_folder, target_ext=".pdf"):
     """
-    PDFファイル名から "-3D" というサフィックスを削除する
+    ファイル名から "-3D" というサフィックスを削除する
     例: "drawing-3D.pdf" → "drawing.pdf"
     
     Args:
         output_folder (str): 処理対象フォルダのパス
+        target_ext (str): 対象ファイル拡張子 (デフォルト: ".pdf")
         
     Returns:
         dict: {old_filename: new_filename} の形式で名前変更ログを返す
@@ -19,7 +20,7 @@ def remove_suffix_3d_from_pdf(output_folder):
     
     try:
         for fname in os.listdir(output_folder):
-            if fname.lower().endswith(".pdf"):
+            if fname.lower().endswith(target_ext.lower()):
                 m = pattern.match(fname)
                 if m:
                     base = m.group("base")
@@ -42,6 +43,6 @@ def remove_suffix_3d_from_pdf(output_folder):
                     except Exception as e:
                         print(f"❌ 名前変更失敗: {fname} ({str(e)})")
     except Exception as e:
-        print(f"❌ PDF フォルダの読み込みに失敗しました: {str(e)}")
+        print(f"❌ フォルダの読み込みに失敗しました: {str(e)}")
     
     return rename_log

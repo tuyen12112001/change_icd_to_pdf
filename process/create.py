@@ -44,6 +44,14 @@ def _step1_excel_mode(excel_path):
         output_folder = filedialog.askdirectory(title="出力フォルダを選択してください")
         if not output_folder:
             return {"error": "出力フォルダが選択されませんでした。"}
+        
+        # フォルダ選択後、My Documents内のPDFファイルをすべて削除
+        from utils.cleanup_pdf import delete_all_pdf_in_my_documents
+        success, deleted_count, message = delete_all_pdf_in_my_documents()
+        if success:
+            print(f"✅ Step 1 PDF削除完了: {message}")
+        else:
+            print(f"⚠️ Step 1 PDF削除失敗: {message}")
 
         # Excel名からクリーンな名前を生成
         excel_name_clean = excel_name.split("-", 1)[1]
@@ -103,6 +111,9 @@ def _step1_excel_mode(excel_path):
                 f.write(file + "\n")
 
         print(f"Copied {len(copied_files)} files to {target_folder}")
+        print(f"\n{'='*60}")
+        print(f"📁 フォルダパス: {target_folder}")
+        print(f"{'='*60}\n")
         
         if skipped_due_to_hold:
             print("❌ 保留のためコピーしなかった部品番号:")
@@ -147,6 +158,14 @@ def _step1_folder_mode(icd_folder_path):
         output_folder = filedialog.askdirectory(title="出力フォルダを選択してください")
         if not output_folder:
             return {"error": "出力フォルダが選択されませんでした。"}
+        
+        # フォルダ選択後、My Documents内のPDFファイルをすべて削除
+        from utils.cleanup_pdf import delete_all_pdf_in_my_documents
+        success, deleted_count, message = delete_all_pdf_in_my_documents()
+        if success:
+            print(f"✅ Step 1 PDF削除完了: {message}")
+        else:
+            print(f"⚠️ Step 1 PDF削除失敗: {message}")
 
         # フォルダ名からサブフォルダ名を生成
         parent_folder_name = os.path.basename(icd_folder_path.rstrip("\\").rstrip("/"))
@@ -186,6 +205,9 @@ def _step1_folder_mode(icd_folder_path):
                 f.write(file + "\n")
 
         print(f"Copied {len(copied_files)} files to {target_folder}")
+        print(f"\n{'='*60}")
+        print(f"📁 フォルダパス: {target_folder}")
+        print(f"{'='*60}\n")
 
         return {
             "output_folder": target_folder,
