@@ -10,7 +10,7 @@ import cv2
 import numpy as np
 from utils.check_ICAD_and_Docuworks import ensure_docuworks_running, ensure_icad_running
 from utils.emergency_stop import emergency_manager
-from config.settings import IMAGE3_PATH, DOCUWORKS_TARGET_FOLDER
+from config.settings import IMAGE3_PATH
 from utils.docuworks_folder_creator import create_docuworks_folder_unique
 from utils.cleanup_pdf import get_docuworks_pdf_folder
 
@@ -67,6 +67,7 @@ def click_one_of_images(image_paths, max_attempts=10, confidence=0.80, wait_time
         time.sleep(wait_time)
     print("❌ No image matched")
     return False
+
 
 # ===========================================================
 # File helpers
@@ -129,13 +130,16 @@ def _normalize_icd_names(icd_list):
 def _watch_and_move_incremental(icd_list, destination_dir, my_docs_dir,
                                  poll_interval=1.0, timeout_sec=300):
     """
-    Incremental "gọi tên và chuyển" watcher.
+    Incremental watcher — quét My Documents liên tục.
 
-    Mỗi lần quét My Documents:
-      1. Đếm số file PDF khớp tên ICD đã xuất hiện (tracking_count).
-      2. Nếu tracking_count tăng lên so với lần trước (ví dụ 1→2):
-           → File thứ 1 (cũ nhất) đã có đủ thời gian, kiểm tra và chuyển nó đi.
-      3. Lặp lại cho đến khi tất cả file được chuyển hoặc hết timeout.
+    Logic:
+      - Bắt đầu với prev_count = 0
+      - Mỗi lần quét, đếm số file PDF khớp tên ICD (current_count)
+      - Nếu current_count = 1: KHÔNG di chuyển gì (chờ file thứ 2 để chắc file 1 ổn định)
+      - Nếu current_count >= 2 và current_count > prev_count:
+          -> Di chuyển tất cả file khớp mà chưa di chuyển
+          -> Kiểm tra _is_file_ready() trước khi di chuyển
+      - Lặp lại cho đến khi không còn file mới hoặc hết timeout
     """
     if not destination_dir or not os.path.isdir(destination_dir):
         print(f"⚠ Invalid destination: {destination_dir}")
@@ -146,14 +150,13 @@ def _watch_and_move_incremental(icd_list, destination_dir, my_docs_dir,
         return []
 
     icd_names = _normalize_icd_names(icd_list)
-    expected_count = len(icd_names)
     moved_paths = []
-    waiting_bases = set()   # file đã xuất hiện nhưng chưa chuyển (theo dõi thứ tự)
-    moved_bases = set()     # file đã chuyển xong
+    moved_bases = set()
     start = time.time()
+    prev_count = 0
 
     def _current_available():
-        """Trả về (matched_dict, all_pdf_names_in_source)"""
+        """Tra ve (matched_dict, all_pdf_names_in_source)"""
         result = {}
         all_pdfs = []
         try:
@@ -168,270 +171,84 @@ def _watch_and_move_incremental(icd_list, destination_dir, my_docs_dir,
             print(f"⚠ Scan error: {e}")
         return result, all_pdfs
 
-    # Lần quét đầu tiên
-    initial, initial_all = _current_available()
-    waiting_bases = set(initial.keys())
-    prev_count = len(waiting_bases)
-    if prev_count > 0:
-        print(f"🆕 Ban đầu phát hiện {prev_count} file: {sorted(waiting_bases)}")
-    else:
-        print(f"ℹ️ Lần quét đầu: chưa thấy file nào (tổng PDF trong folder: {len(initial_all)})")
+    print(f"👁  Incremental watcher: Start monitoring")
+    print(f"    Scan target: {my_docs_dir}")
 
     while time.time() - start < timeout_sec:
         if emergency_manager.is_stop_requested():
             break
 
         available, all_pdfs = _current_available()
-        current_count = len(available)
+        # current_count = số file hiện có trong My Documents + số file đã di chuyển
+        files_in_my_docs = len(available)
+        files_moved = len(moved_bases)
+        current_count = files_in_my_docs + files_moved
 
-        # Debug: in tất cả PDF trong folder mỗi 5 giây
+        # Debug moi 5 giay
         if int(time.time() - start) % 5 == 0:
-            print(f"   📋 Folder có {len(all_pdfs)} PDF: {sorted(set(os.path.splitext(n)[0].strip().lower() for n in all_pdfs))[:10]}")
+            bases_str = sorted(set(os.path.splitext(n)[0].strip().lower() for n in all_pdfs))[:10]
+            print(f"   📋 My Docs: {files_in_my_docs}, Di chuyen: {files_moved}, Tong: {current_count} | {sorted(available.keys())}")
 
-        # Kiểm tra điều kiện kết thúc
-        if not available:
-            if waiting_bases:
-                print(f"⏳ Hết file mới, {len(waiting_bases)} file đang chờ ổn định...")
-                # thử di chuyển lần cuối
-                for base in sorted(waiting_bases):
-                    # tìm path trong all_pdfs
-                    src = None
-                    for name in all_pdfs:
-                        if os.path.splitext(name)[0].strip().lower() == base:
-                            src = os.path.join(my_docs_dir, name)
-                            break
-                    if src and _is_file_ready(src, stable_checks=2, wait_interval=0.3):
-                        try:
-                            dst = _get_nonconflict_path(destination_dir, os.path.basename(src))
-                            shutil.move(src, dst)
-                            moved_bases.add(base)
-                            waiting_bases.discard(base)
-                            moved_paths.append(dst)
-                            print(f"✅ Di chuyển (lần cuối): {os.path.basename(src)}")
-                        except Exception as e:
-                            print(f"❌ Lỗi: {os.path.splitext(os.path.basename(src))[0]} / {e}")
-                            waiting_bases.discard(base)
-            if not waiting_bases:
-                break
-            if len(moved_paths) >= expected_count:
-                break
+        # Neu current_count = 1: KHONG di chuyen (cho file thu 2 de dam bao file 1 on dinh)
+        if current_count == 1:
+            print(f"⏳ Chi co 1 file, cho file thu 2 de dam bao on dinh...")
+            prev_count = current_count
             time.sleep(poll_interval)
             continue
 
-        # Nếu số file hiện có TĂNG lên so với lần trước
-        # → file cũ nhất trong waiting_bases đã có thêm thời gian ổn định
-        if current_count > prev_count:
-            if waiting_bases:
-                oldest = next(iter(sorted(waiting_bases)))  # file cũ nhất theo alphabet
-                src_path = available.get(oldest)
-                if src_path:
-                    try:
-                        if _is_file_ready(src_path, stable_checks=2, wait_interval=0.3):
-                            dst = _get_nonconflict_path(destination_dir, os.path.basename(src_path))
-                            shutil.move(src_path, dst)
-                            moved_bases.add(oldest)
-                            waiting_bases.discard(oldest)
-                            moved_paths.append(dst)
-                            print(f"✅ Di chuyển (file {len(moved_paths)}/{expected_count}): {os.path.basename(src_path)}")
-                        else:
-                            print(f"⏳ Chưa ổn định, giữ lại: {os.path.basename(src_path)}")
-                    except Exception as e:
-                        print(f"❌ Lỗi di chuyển: {os.path.basename(src_path)} / {e}")
-                        waiting_bases.discard(oldest)
+        # Neu current_count >= 2 va TANG so voi lan truoc
+        if current_count >= 2 and current_count > prev_count:
+            files_to_move = list(available.items())
+            moved_count = 0
 
-            # Cập nhật waiting_bases: những file mới chưa từng được ghi nhận
-            new_bases = set(available.keys()) - waiting_bases - moved_bases
-            waiting_bases |= new_bases
-            if new_bases:
-                print(f"🆕 Thêm {len(new_bases)} file vào danh sách chờ: {sorted(new_bases)}")
+            for base, src_path in sorted(files_to_move):
+                try:
+                    if _is_file_ready(src_path, stable_checks=2, wait_interval=0.3):
+                        dst = _get_nonconflict_path(destination_dir, os.path.basename(src_path))
+                        shutil.move(src_path, dst)
+                        moved_bases.add(base)
+                        moved_paths.append(dst)
+                        moved_count += 1
+                        print(f"✅ Di chuyen (file {len(moved_paths)}): {os.path.basename(src_path)}")
+                    else:
+                        print(f"⏳ Chua on dinh, giu lai: {os.path.basename(src_path)}")
+                except Exception as e:
+                    print(f"❌ Loi di chuyen: {os.path.basename(src_path)} / {e}")
+                    moved_bases.add(base)
 
-        # Nếu số file không tăng nhưng có file cũ chưa di chuyển,
-        # thử di chuyển ngay
-        elif waiting_bases and current_count == prev_count:
-            still_waiting = sorted(waiting_bases & set(available.keys()))
-            if still_waiting:
-                oldest = still_waiting[0]
-                src_path = available.get(oldest)
-                if src_path:
-                    try:
-                        if _is_file_ready(src_path, stable_checks=2, wait_interval=0.3):
-                            dst = _get_nonconflict_path(destination_dir, os.path.basename(src_path))
-                            shutil.move(src_path, dst)
-                            moved_bases.add(oldest)
-                            waiting_bases.discard(oldest)
-                            moved_paths.append(dst)
-                            print(f"✅ Di chuyển (file {len(moved_paths)}/{expected_count}): {os.path.basename(src_path)}")
-                    except Exception as e:
-                        print(f"❌ Lỗi di chuyển: {os.path.basename(src_path)} / {e}")
-                        waiting_bases.discard(oldest)
+            if moved_count > 0:
+                print(f"🔄 Vua di chuyen {moved_count} file, Tong phat hien: {current_count} (My Docs: {files_in_my_docs}, Di chuyen: {files_moved})")
+
+        # Neu khong con file nao khop
+        if not available and moved_bases:
+            print(f"✅ Het file moi, tong da di chuyen: {len(moved_paths)}")
+            break
 
         prev_count = current_count
-
-        if len(moved_paths) >= expected_count:
-            print(f"✅ Tất cả {expected_count} file đã di chuyển.")
-            break
-
         time.sleep(poll_interval)
 
-    if len(moved_paths) < expected_count:
-        print(f"⚠ Chưa đủ: {len(moved_paths)}/{expected_count} (timeout hoặc dừng)")
-
+    print(f"✅ Watcher finished: {len(moved_paths)} files moved in {time.time() - start:.1f}s")
     return moved_paths
-
-
-def _watch_and_move_incremental_multi(icd_list, destination_dir, scan_dirs,
-                                       poll_interval=1.0, timeout_sec=300):
-    """
-    Quét nhiều thư mục cùng lúc để tìm file PDF của ICAD.
-
-    Mỗi lần quét:
-      - Gộp kết quả từ tất cả scan_dirs → {base_name: (src_path, dir_index)}
-      - Phát hiện file MỚI (chưa từng thấy trước đó)
-      - Khi số file tăng → lấy file cũ nhất trong danh sách, chờ ổn định, di chuyển
-      - Khi không còn file mới sau 3s và đã di chuyển ít nhất 1 file → kết thúc
-
-    scan_dirs: list of folder paths (ưu tiên theo thứ tự trong list)
-    """
-    if not destination_dir or not os.path.isdir(destination_dir):
-        print(f"⚠ Invalid destination: {destination_dir}")
-        return []
-
-    icd_names = _normalize_icd_names(icd_list)
-    expected_count = len(icd_names)
-    moved_paths = []
-    waiting_bases = {}   # base_name → (src_path, src_dir)
-    moved_bases = set()
-    start = time.time()
-    prev_total_count = 0
-    last_new_sighting = None
-
-    def _collect_all():
-        """Trả về (matched_dict{base: (src_path, dir_idx)}, total_pdf_count) — quét cả subfolder"""
-        found = {}
-        total = 0
-        for di, d in enumerate(scan_dirs):
-            try:
-                for root, _, files in os.walk(d):
-                    for name in files:
-                        if not name.lower().endswith(".pdf"):
-                            continue
-                        total += 1
-                        base = os.path.splitext(name)[0].strip().lower()
-                        if base in icd_names and base not in moved_bases and base not in found:
-                            found[base] = (os.path.join(root, name), di)
-            except Exception:
-                continue
-        return found, total
-
-    # Lần quét đầu
-    available, total_now = _collect_all()
-    waiting_bases = available.copy()
-    prev_total_count = total_now
-    sources_used = sorted(set(di for _, di in available.values()))
-    print(f"👁  Multi-watcher: {len(available)}/{expected_count} file tìm thấy lần đầu (từ thư mục {sources_used}, tổng PDF: {total_now})")
-
-    while time.time() - start < timeout_sec:
-        if emergency_manager.is_stop_requested():
-            break
-
-        available, total_now = _collect_all()
-        current_count = len(available)
-
-        # Debug mỗi 5s
-        if int(time.time() - start) % 5 == 0:
-            dir_summary = {}
-            for base, (path, di) in available.items():
-                dir_summary.setdefault(scan_dirs[di], []).append(base)
-            for d, bases in dir_summary.items():
-                print(f"   📋 {os.path.basename(d)}: {sorted(bases)[:8]}")
-            if not dir_summary:
-                print(f"   ⚠️ Không tìm thấy file nào trong các thư mục quét.")
-
-        if not available and not waiting_bases:
-            break
-
-        # ---------- di chuyển file cũ nhất khi số file TĂNG ----------
-        if current_count > prev_total_count:
-            # Số file trong tất cả thư mục tăng → file cũ nhất ổn định rồi
-            all_waiting = set(waiting_bases) | set(available)
-            oldest = next(iter(sorted(all_waiting)))
-            src_path, _ = available.get(oldest) or waiting_bases.get(oldest)
-            if src_path:
-                moved_bases = _try_move(oldest, src_path, destination_dir, moved_bases, moved_paths, expected_count)
-            prev_total_count = total_now
-            last_new_sighting = time.time()
-            # Cập nhật waiting_bases với file mới tìm thấy
-            waiting_bases.update(available)
-            continue
-
-        # ---------- Nếu không tăng, thử di chuyển file cũ nhất ----------
-        if waiting_bases:
-            # Ưu tiên file cũ nhất theo thứ tự alphabet
-            all_ordered = sorted(set(list(waiting_bases.keys()) + list(available.keys())))
-            for base in all_ordered:
-                src_path, _ = available.get(base) or waiting_bases.get(base)
-                if src_path:
-                    result = _try_move(base, src_path, destination_dir, moved_bases, moved_paths, expected_count)
-                    if result:
-                        break
-
-        # ---------- Cập nhật waiting_bases ----------
-        waiting_bases.update(available)
-        # Xóa những file đã di chuyển
-        waiting_bases = {k: v for k, v in waiting_bases.items() if k not in moved_bases}
-
-        prev_total_count = max(prev_total_count, total_now)
-
-        if len(moved_paths) >= expected_count:
-            print(f"✅ Tất cả {expected_count} file đã di chuyển.")
-            break
-
-        time.sleep(poll_interval)
-
-    remaining = expected_count - len(moved_paths)
-    if remaining > 0:
-        print(f"⚠ Chưa đủ: {len(moved_paths)}/{expected_count} (thiếu {remaining})")
-
-    return moved_paths
-
-
-def _try_move(base_name, src_path, destination_dir, moved_bases, moved_paths, expected_count):
-    """Thử di chuyển 1 file. Trả về True nếu di chuyển thành công."""
-    try:
-        if not os.path.isfile(src_path):
-            return False
-        if not _is_file_ready(src_path, stable_checks=2, wait_interval=0.3):
-            print(f"⏳ Chưa ổn định: {os.path.basename(src_path)}")
-            return False
-        dst = _get_nonconflict_path(destination_dir, os.path.basename(src_path))
-        shutil.move(src_path, dst)
-        moved_bases.add(base_name)
-        moved_paths.append(dst)
-        print(f"✅ Di chuyển ({len(moved_paths)}/{expected_count}): {os.path.basename(src_path)}")
-        return True
-    except Exception as e:
-        print(f"❌ Lỗi di chuyển: {os.path.basename(src_path)} / {e}")
-        return False
 
 
 # ===========================================================
-# ✅ Step 2: Print
+# Step 2: Print
 # ===========================================================
 
 def step2_print_icd(output_dir, excel_name_clean, icd_list=None):
     """
-    Step 2 — Print from ICAD to DocuWorks:
+    Step 2 - Print from ICAD to DocuWorks:
       1. Create a new folder in DocuWorks.
-      2. Drive ICAD (Alt+F→D, paste output path, select DocuWorks PDF printer,
+      2. Drive ICAD (Alt+F->D, paste output path, select DocuWorks PDF printer,
          Shift+End, Enter).
       3. After printing, poll My Documents using ICD name matching
          and move confirmed PDFs into the DocuWorks folder.
       4. Return summary dict.
 
     Parameters:
-        output_dir:    Output folder path
+        output_dir:       Output folder path
         excel_name_clean: Cleaned Excel name
-        icd_list:      List of source ICD file paths (used for filename matching)
+        icd_list:         List of source ICD file paths (used for filename matching)
     """
     try:
         # 1. Ensure DocuWorks is running and create folder
@@ -458,7 +275,7 @@ def step2_print_icd(output_dir, excel_name_clean, icd_list=None):
             print("⚠ Emergency stop before printer selection. Aborting.")
             return None
 
-        # 3. Open ICAD print dialog  (Alt+F → D)
+        # 3. Open ICAD print dialog (Alt+F -> D)
         pyautogui.keyDown('alt')
         pyautogui.press('f')
         time.sleep(0.2)
@@ -479,7 +296,7 @@ def step2_print_icd(output_dir, excel_name_clean, icd_list=None):
         if emergency_manager.is_stop_requested():
             return None
 
-        # 5. Open print options  (Alt+O)
+        # 5. Open print options (Alt+O)
         pyautogui.hotkey("alt", "o")
         time.sleep(0.5)
 
@@ -500,7 +317,7 @@ def step2_print_icd(output_dir, excel_name_clean, icd_list=None):
         pyautogui.press("enter")
         time.sleep(1)
 
-        # 6. Select all files  (Home → Shift+End → Enter to start print)
+        # 6. Select all files (Home -> Shift+End -> Enter to start print)
         keyboard.press(Key.home)
         keyboard.release(Key.home)
         time.sleep(0.2)
@@ -522,22 +339,12 @@ def step2_print_icd(output_dir, excel_name_clean, icd_list=None):
         time.sleep(3)
 
         # -----------------------------------------------------------
-        # Step 2-B: Incremental watch — move as soon as each file is stable
+        # Step 2-B: Incremental watch — chi quet My Documents
         # -----------------------------------------------------------
-        # ICAD print output có thể xuất hiện ở nhiều nơi:
-        #   DOCUWORKS_TARGET_FOLDER (cấu hình trong settings.py)
-        #   → output_dir (đường dẫn ICAD vừa dán)
-        #   → My Documents (fallback cuối cùng)
-        watch_candidates = [
-            d for d in [
-                DOCUWORKS_TARGET_FOLDER,
-                output_dir,
-                get_docuworks_pdf_folder(),
-            ] if d and os.path.isdir(d)
-        ]
+        my_docs_dir = get_docuworks_pdf_folder()
 
-        if not watch_candidates:
-            print("⚠ Không tìm thấy thư mục quét nào hợp lệ.")
+        if not my_docs_dir or not os.path.isdir(my_docs_dir):
+            print("⚠ Khong tim thay thu muc My Documents hop le.")
             return None
 
         icd_names = list(_normalize_icd_names(icd_list or []))
@@ -545,12 +352,12 @@ def step2_print_icd(output_dir, excel_name_clean, icd_list=None):
             print("⚠ ICD list is empty — nothing to move.")
 
         print(f"👁  Incremental watcher: {len(icd_names)} files expected")
-        print(f"    Scan targets: {watch_candidates}")
+        print(f"    Scan target: {my_docs_dir}")
 
-        moved = _watch_and_move_incremental_multi(
+        moved = _watch_and_move_incremental(
             icd_list=icd_list,
             destination_dir=folder_path,
-            scan_dirs=watch_candidates,
+            my_docs_dir=my_docs_dir,
         )
         printed_pdf_count = len(moved)
 
