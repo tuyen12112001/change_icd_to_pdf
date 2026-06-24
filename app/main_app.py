@@ -48,9 +48,6 @@ class ShutsuzuuApp(TkinterDnD.Tk):
         # --- 以前の状態を初期化する ---
         self.info = None
         self.excel_full_path = ""
-        self.folder_full_path = ""
-        self.input_mode = "excel"  # "excel" のみ使用
-        self.mode_var = tk.StringVar(value="excel")
         self.is_running = False
 
         # --- UI を作成する前にプロセス マネージャーを初期化する ---
@@ -64,29 +61,7 @@ class ShutsuzuuApp(TkinterDnD.Tk):
         header = tk.Label(self, text=HEADER_TEXT, font=("Arial", 24, "bold"), fg="#004080", bg=BG_COLOR)
         header.pack(pady=15)
 
-        # モード選択
-        mode_frame = tk.Frame(self, bg=BG_COLOR)
-        mode_frame.pack(pady=(0, 8))
-        tk.Radiobutton(
-            mode_frame,
-            text="Excel",
-            variable=self.mode_var,
-            value="excel",
-            command=self.on_mode_change,
-            bg=BG_COLOR,
-            font=("Arial", 11, "bold"),
-        ).pack(side=tk.LEFT, padx=10)
-        tk.Radiobutton(
-            mode_frame,
-            text="DocuWorks",
-            variable=self.mode_var,
-            value="docuworks",
-            command=self.on_mode_change,
-            bg=BG_COLOR,
-            font=("Arial", 11, "bold"),
-        ).pack(side=tk.LEFT, padx=10)
-
-        # 入力フレーム用のコンテナ（モードで表示切替）
+        # 入力フレーム用のコンテナ
         self.input_container = tk.Frame(self, bg=BG_COLOR)
         self.input_container.pack(pady=10, padx=20, fill="x")
 
@@ -103,21 +78,7 @@ class ShutsuzuuApp(TkinterDnD.Tk):
         self.excel_frame.dnd_bind('<<Drop>>', self.on_drop_excel)  # type: ignore[attr-defined]
         self.excel_entry.drop_target_register(DND_FILES)  # type: ignore[attr-defined]
         self.excel_entry.dnd_bind('<<Drop>>', self.on_drop_excel)  # type: ignore[attr-defined]
-
-        # DocuWorksモードUI
-        self.test_frame = tk.Frame(self.input_container, bg=PANEL_BG, bd=2, relief="groove")
-        tk.Label(self.test_frame, text="DocuWorks Desk", font=("Arial", 12, "bold"), bg=PANEL_BG).pack(pady=(12, 8))
-        self.docuworks_btn = tk.Button(
-            self.test_frame,
-            text="Active DocuWorks",
-            command=self.on_docuworks_test_click,
-            bg="#1e90ff",
-            fg="white",
-            activebackground="#1c7ed6",
-            width=24,
-            font=("Arial", 12, "bold"),
-        )
-        self.docuworks_btn.pack(pady=(2, 14))
+        self.excel_frame.pack(fill="x")
 
         # ステータス + プログレスバー
         status_frame = tk.Frame(self, bg=PANEL_BG, bd=2, relief="groove")
@@ -176,24 +137,7 @@ class ShutsuzuuApp(TkinterDnD.Tk):
                                   width=12, font=("Arial", 12, "bold"))
         self.quit_btn.pack(side=tk.RIGHT, padx=15)
 
-        # 初期モード反映
-        self.on_mode_change()
-
-    def on_mode_change(self):
-        selected_mode = self.mode_var.get()
-        self.input_mode = "excel" if selected_mode == "excel" else "docuworks"
-
-        self.excel_frame.pack_forget()
-        self.test_frame.pack_forget()
-
-        if selected_mode == "excel":
-            self.excel_frame.pack(fill="x")
-            self.button_frame.pack(pady=20)
-            self.status_label.config(text="Excelファイルを選択してください。", fg="blue")
-        else:
-            self.test_frame.pack(fill="x")
-            self.button_frame.pack_forget()
-            self.status_label.config(text="DocuWorksを起動してください。", fg="blue")
+        self.status_label.config(text="Excelファイルを選択してください。", fg="blue")
 
     # --- UI イベント ---
     def on_drop_excel(self, event):
@@ -215,13 +159,6 @@ class ShutsuzuuApp(TkinterDnD.Tk):
             self.status_label.config(text="Excelファイルを確認しました。開始ボタンを押してください。", fg="blue")
         else:
             messagebox.showerror("エラー", "Excelファイルを選択してください。")
-
-    def on_docuworks_test_click(self):
-        activated = activate_docuworks_and_open_user_folder()
-        if activated:
-            self.status_label.config(text="DocuWorksでPDFフォルダを開きました。", fg="blue")
-        else:
-            messagebox.showerror("エラー", "DocuWorksでPDFフォルダを開けませんでした。")
 
     def on_exchange_btn_click(self):
         """Button動的処理：交換完了 or 再張り切り"""

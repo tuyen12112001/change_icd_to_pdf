@@ -82,7 +82,7 @@ class ProcessManager:
         try:
             # Step 1: Copy ICD files
             update_status(self.app, "ステップ1: ファイルコピー中...", 25)
-            self.app.info = step1_create_and_copy(excel_path=excel_path, icd_folder_path=None)
+            self.app.info = step1_create_and_copy(excel_path=excel_path)
 
             # Kiểm tra lỗi ngay sau khi Step 1
             if not self.app.info or "error" in self.app.info:

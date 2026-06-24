@@ -5,11 +5,10 @@ import pandas as pd
 import re
 from utils.searchTools import search_number, search_gradually
 
-def step1_create_and_copy(excel_path=None, icd_folder_path=None):
+def step1_create_and_copy(excel_path=None):
     """
-    ステップ1:
-    - Excelモード: Excelファイルから列Kを読み込みICDファイルをコピー
-    - フォルダモード: 指定フォルダ内のすべての.icdファイルを直接コピー
+    ステップ1 (Excelモード):
+    - Excelファイルから列Kを読み込みICDファイルをコピー
     - ユーザーに出力フォルダを選択させる。
     - ICDフォルダから一致する.icdファイルをコピー。
     - config.txtを保存。
@@ -18,13 +17,9 @@ def step1_create_and_copy(excel_path=None, icd_folder_path=None):
         エラー時: {"error": "エラーメッセージ"}
     """
     try:
-        # モード判定
-        if excel_path and not icd_folder_path:
-            return _step1_excel_mode(excel_path)
-        elif icd_folder_path and not excel_path:
-            return _step1_folder_mode(icd_folder_path)
-        else:
-            return {"error": "ExcelファイルまたはICDフォルダのいずれかを選択してください。"}
+        if not excel_path:
+            return {"error": "Excelファイルを選択してください。"}
+        return _step1_excel_mode(excel_path)
 
     except Exception as e:
         return {"error": f"エラーが発生しました: {str(e)}"}
@@ -137,87 +132,3 @@ def _step1_excel_mode(excel_path):
 
     except Exception as e:
         return {"error": f"Excelモード処理エラー: {str(e)}"}
-
-
-def _step1_folder_mode(icd_folder_path):
-    """
-    フォルダモード処理: 指定フォルダ内の "drawing" サブフォルダを検索し、
-    そこから.icdファイルを取得（ASで始まるファイルは除外、サブフォルダは除外）
-    """
-    try:
-        # フォルダの存在確認
-        if not os.path.isdir(icd_folder_path):
-            return {"error": f"ICDフォルダが見つかりません: {icd_folder_path}"}
-
-        # "drawing" フォルダを探す
-        drawing_folder = os.path.join(icd_folder_path, "drawing")
-        if not os.path.isdir(drawing_folder):
-            return {"error": f"'drawing' フォルダが見つかりません: {drawing_folder}"}
-
-        # ユーザーに出力フォルダを選択させる
-        output_folder = filedialog.askdirectory(title="出力フォルダを選択してください")
-        if not output_folder:
-            return {"error": "出力フォルダが選択されませんでした。"}
-        
-        # フォルダ選択後、My Documents内のPDFファイルをすべて削除
-        from utils.cleanup_pdf import delete_all_pdf_in_my_documents
-        success, deleted_count, message = delete_all_pdf_in_my_documents()
-        if success:
-            print(f"✅ Step 1 PDF削除完了: {message}")
-        else:
-            print(f"⚠️ Step 1 PDF削除失敗: {message}")
-
-        # フォルダ名からサブフォルダ名を生成
-        parent_folder_name = os.path.basename(icd_folder_path.rstrip("\\").rstrip("/"))
-        target_folder = os.path.join(output_folder, parent_folder_name)
-        target_folder = os.path.normpath(target_folder)
-
-        if os.path.exists(target_folder):
-            return {"error": f"フォルダ '{parent_folder_name}' は既に存在します。別のフォルダを選択してください。"}
-        
-        os.makedirs(target_folder)
-
-        # drawing フォルダ内のすべての.icdファイルを取得（サブフォルダは除外）
-        copied_files = []
-        
-        icd_files = [f for f in os.listdir(drawing_folder) 
-                     if os.path.isfile(os.path.join(drawing_folder, f)) and f.lower().endswith('.icd')]
-
-        if not icd_files:
-            return {"error": f"drawing フォルダに.icdファイルが見つかりません: {drawing_folder}"}
-
-        for icd_file in icd_files:
-            src_path = os.path.join(drawing_folder, icd_file)
-            dst_path = os.path.join(target_folder, icd_file)
-            try:
-                shutil.copy(src_path, dst_path)
-                copied_files.append(src_path)
-                print(f"✅ コピー: {icd_file}")
-            except Exception as e:
-                print(f"❌ コピー失敗: {icd_file} - {str(e)}")
-
-        if not copied_files:
-            return {"error": f"コピーするICDファイルが見つかりません"}
-
-        # config.txt保存
-        with open(os.path.join(target_folder, "config.txt"), "w", encoding="utf-8") as f:
-            for file in copied_files:
-                f.write(file + "\n")
-
-        print(f"Copied {len(copied_files)} files to {target_folder}")
-        print(f"\n{'='*60}")
-        print(f"📁 フォルダパス: {target_folder}")
-        print(f"{'='*60}\n")
-
-        return {
-            "output_folder": target_folder,
-            "excel_name_clean": parent_folder_name,
-            "copied_count": len(copied_files),
-            "not_found": [],
-            "icd_list": copied_files,
-            "skipped_due_to_hold": [],
-            "added_due_to_addition": []
-        }
-
-    except Exception as e:
-        return {"error": f"フォルダモード処理エラー: {str(e)}"}
